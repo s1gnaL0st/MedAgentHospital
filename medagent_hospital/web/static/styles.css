@@ -1,0 +1,274 @@
+:root {
+  --bg: #eef1f4;
+  --panel: #ffffff;
+  --line: #dfe3e8;
+  --ink: #20242c;
+  --muted: #6b7280;
+  --accent: #0e7490;
+  --accent-soft: #e0f2f6;
+  --amber: #b45309;
+  --amber-soft: #fdf0dc;
+  --ok: #15803d;
+  --bad: #b91c1c;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+button, select, input { font: inherit; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 18px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.brand-mark {
+  width: 18px;
+  height: 18px;
+  background: var(--accent);
+  border-radius: 4px;
+  position: relative;
+}
+
+.brand-mark::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 5px;
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+.tabs { display: flex; gap: 4px; margin-left: auto; }
+
+.tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 7px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tab:hover { color: var(--ink); background: #f3f5f8; }
+.tab.active { color: var(--accent); background: var(--accent-soft); border-color: #b9dde8; }
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+
+main { padding: 18px; max-width: 1440px; margin: 0 auto; }
+.view { display: none; }
+.view.active { display: block; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.sim-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 14px;
+  align-items: start;
+}
+
+.scene-panel { padding: 10px; }
+.scene-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+
+select, .btn {
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0 10px;
+}
+
+.btn { cursor: pointer; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: #0b5f77; }
+.btn.ghost { background: transparent; }
+.btn.ghost:hover { background: #f3f5f8; }
+.btn:disabled { opacity: 0.55; cursor: default; }
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  user-select: none;
+}
+
+.canvas-wrap {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #10141c;
+}
+
+#hospitalCanvas, #evChart { display: block; width: 100%; height: auto; }
+
+.side { display: grid; gap: 12px; }
+.side h2, .panel h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.patient-panel { min-height: 150px; }
+.patient-panel .name { font-size: 18px; font-weight: 600; }
+.patient-panel .meta { color: var(--muted); margin: 2px 0 8px; }
+.symptom-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag {
+  background: #f1f5f9;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.truth { margin-top: 10px; border-radius: 6px; padding: 8px 10px; font-size: 13px; }
+.truth.ok { background: #e8f7ee; color: var(--ok); border: 1px solid #b9e3c8; }
+.truth.bad { background: #fdeeee; color: var(--bad); border: 1px solid #f0c4c4; }
+.truth .truth-title { font-weight: 600; }
+.truth .reasoner { float: right; font-weight: 600; }
+.truth-note { margin-top: 6px; color: var(--ink); }
+
+.detail { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.detail h3 { margin: 6px 0 4px; font-size: 12px; color: var(--muted); }
+.detail ul { margin: 0; padding-left: 18px; }
+.detail li { font-size: 12px; margin: 2px 0; }
+
+.event-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.event-log li {
+  position: relative;
+  padding: 7px 0 7px 18px;
+  border-bottom: 1px dashed var(--line);
+  font-size: 13px;
+}
+
+.event-log li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 13px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.event-log li.patient::before { background: var(--accent); }
+.event-log li.nurse::before { background: #8b5cf6; }
+.event-log li.doctor::before { background: var(--amber); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 12px;
+  background: #f8fafc;
+}
+.chip.case { border-color: #b9dde8; background: var(--accent-soft); color: var(--accent); }
+.chip.rule { border-color: #f0d5a8; background: var(--amber-soft); color: var(--amber); }
+
+.muted { color: var(--muted); }
+.empty { padding: 12px 0; }
+.hidden { display: none; }
+
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 500; }
+td.num, th.num { text-align: right; }
+
+.kb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.kb-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.kb-card h3 { margin: 0 0 8px; font-size: 15px; }
+.kb-card .count { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.kb-card .disease-list { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.memory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.memory-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfe;
+}
+
+.memory-card h4 { margin: 0 0 8px; }
+.memory-card .stat { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; color: var(--muted); }
+.memory-card .stat b { color: var(--ink); }
+
+@media (max-width: 1100px) {
+  .sim-layout { grid-template-columns: 1fr; }
+}

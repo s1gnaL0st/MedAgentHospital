@@ -1,0 +1,9 @@
+[project]
+name = "medagent-hospital"
+version = "0.1.0"
+description = "Agent Hospital style medical multi-agent simulation with evolvable doctor agents"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

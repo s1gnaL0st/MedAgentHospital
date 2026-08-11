@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MedAgent-Hospital</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <span>MedAgent-Hospital</span>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-view="sim">医院模拟</button>
+      <button class="tab" data-view="evolution">进化训练</button>
+      <button class="tab" data-view="memory">记忆库</button>
+      <button class="tab" data-view="kb">知识库</button>
+    </nav>
+    <div class="status"><span class="dot"></span><span id="statusText">离线规则模式</span></div>
+  </header>
+
+  <main>
+    <section id="view-sim" class="view active">
+      <div class="sim-layout">
+        <div class="panel scene-panel">
+          <div class="scene-toolbar">
+            <select id="deptSelect" aria-label="科室"></select>
+            <select id="diseaseSelect" aria-label="疾病"><option value="">随机疾病</option></select>
+            <button id="randomBtn" class="btn ghost" type="button">随机</button>
+            <label class="check"><input type="checkbox" id="memoryToggle">使用进化记忆</label>
+            <label class="check"><input type="checkbox" id="forceConsultation">强制会诊</label>
+            <select id="modelSelect" aria-label="推理模式">
+              <option value="rule">规则模式</option>
+              <option value="llm">DeepSeek</option>
+            </select>
+            <select id="speedSelect" aria-label="播放速度">
+              <option value="700">慢速</option>
+              <option value="420" selected>标准</option>
+              <option value="220">快速</option>
+            </select>
+            <button id="runBtn" class="btn primary" type="button">开始就诊</button>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="hospitalCanvas" width="960" height="540"></canvas>
+          </div>
+        </div>
+        <div class="side">
+          <div class="panel patient-panel">
+            <h2>病人</h2>
+            <div id="patientInfo" class="muted empty">等待病人</div>
+            <div id="truthBox" class="truth hidden"></div>
+            <div id="detailBox" class="detail hidden"></div>
+          </div>
+          <div class="panel log-panel">
+            <h2>就诊记录</h2>
+            <ol id="eventLog" class="event-log"></ol>
+          </div>
+          <div class="panel memory-panel">
+            <h2>记忆检索</h2>
+            <div id="memoryChips" class="chips empty">无</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-evolution" class="view">
+      <div class="panel">
+        <h2>进化训练</h2>
+        <div class="row"><span class="muted">暂未启用</span></div>
+      </div>
+    </section>
+
+    <section id="view-memory" class="view">
+      <div class="panel">
+        <h2>记忆库概况</h2>
+        <div id="memoryOverview" class="muted empty">先运行进化训练</div>
+      </div>
+    </section>
+
+    <section id="view-kb" class="view">
+      <div id="kbOverview" class="kb-grid"></div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

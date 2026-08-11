@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+.env
+dist/
+build/
+data/experiments/
+data/generated/
+Thumbs.db
+.DS_Store
+/Agent Hospital A Simulacrum of Hospital with.pdf

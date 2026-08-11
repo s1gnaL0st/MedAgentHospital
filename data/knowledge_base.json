@@ -1,0 +1,1051 @@
+{
+  "version": "0.2.0",
+  "purpose": "Algorithm demonstration and research only. NOT clinical advice.",
+  "departments": ["心内科", "呼吸科", "消化科", "神经内科", "内分泌科", "皮肤科"],
+  "diseases": [
+    {
+      "id": "CARD-001",
+      "name": "急性心肌梗死",
+      "aliases": ["急性心梗", "心肌梗死"],
+      "department": "心内科",
+      "symptoms": ["胸骨后压榨样疼痛", "向左肩背部放射", "大汗", "恶心呕吐", "呼吸困难"],
+      "risk_factors": ["高血压", "高脂血症", "糖尿病", "吸烟", "高龄"],
+      "examinations": [
+        {"name": "心电图", "findings": "ST段弓背向上抬高，出现病理性Q波"},
+        {"name": "肌钙蛋白", "findings": "心肌肌钙蛋白显著升高"},
+        {"name": "冠脉造影", "findings": "冠状动脉闭塞或重度狭窄"}
+      ],
+      "treatments": ["抗血小板治疗", "急诊PCI再灌注", "溶栓治疗（无PCI条件时）"],
+      "distinguishing_features": ["胸痛持续超过30分钟不缓解", "心肌肌钙蛋白升高", "心电图ST段弓背向上抬高"],
+      "patient_profile": {
+        "age_range": [45, 80],
+        "gender_bias": "any",
+        "symptom_weights": {"胸骨后压榨样疼痛": 1.0, "向左肩背部放射": 0.7, "大汗": 0.8, "恶心呕吐": 0.4, "呼吸困难": 0.5},
+        "history_bias": ["高血压", "高脂血症", "糖尿病", "吸烟"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "CARD-002",
+      "name": "稳定型心绞痛",
+      "department": "心内科",
+      "symptoms": ["胸骨后闷痛", "劳累或情绪激动诱发", "休息或含服硝酸甘油缓解", "胸闷", "心悸"],
+      "risk_factors": ["高血压", "高脂血症", "糖尿病", "吸烟", "肥胖"],
+      "examinations": [
+        {"name": "心电图", "findings": "发作时ST段水平型或下斜型压低"},
+        {"name": "运动负荷试验", "findings": "诱发心绞痛和ST段改变"},
+        {"name": "冠脉造影", "findings": "冠状动脉狭窄但未完全闭塞"}
+      ],
+      "treatments": ["硝酸甘油", "阿司匹林", "他汀类药物", "介入治疗"],
+      "distinguishing_features": ["胸痛持续数分钟且可缓解", "运动诱发休息缓解", "心电图ST段压低而非抬高"],
+      "patient_profile": {
+        "age_range": [50, 75],
+        "gender_bias": "any",
+        "symptom_weights": {"胸骨后闷痛": 1.0, "劳累或情绪激动诱发": 0.9, "休息或含服硝酸甘油缓解": 0.8, "胸闷": 0.5, "心悸": 0.3},
+        "history_bias": ["高血压", "高脂血症", "糖尿病", "吸烟"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "CARD-003",
+      "name": "高血压病",
+      "department": "心内科",
+      "symptoms": ["头晕", "头痛", "颈项板紧", "乏力", "耳鸣", "心悸"],
+      "risk_factors": ["高盐饮食", "肥胖", "家族史", "年龄增长", "长期精神紧张"],
+      "examinations": [
+        {"name": "诊室血压", "findings": "非同日三次测量收缩压≥140mmHg和/或舒张压≥90mmHg"},
+        {"name": "动态血压监测", "findings": "24小时平均血压升高"},
+        {"name": "心电图", "findings": "左心室肥厚或劳损表现"},
+        {"name": "肾功能", "findings": "尿蛋白或肌酐轻度升高"}
+      ],
+      "treatments": ["生活方式干预", "钙通道阻滞剂", "ACEI/ARB", "利尿剂"],
+      "distinguishing_features": ["非同日多次血压≥140/90mmHg", "常无特异性症状", "动态血压监测确认升高"],
+      "patient_profile": {
+        "age_range": [40, 75],
+        "gender_bias": "any",
+        "symptom_weights": {"头晕": 0.7, "头痛": 0.6, "颈项板紧": 0.4, "乏力": 0.3, "耳鸣": 0.3, "心悸": 0.2},
+        "history_bias": ["高盐饮食", "肥胖", "家族史"],
+        "exam_hit_rate": 0.95
+      }
+    },
+    {
+      "id": "CARD-004",
+      "name": "慢性心力衰竭",
+      "department": "心内科",
+      "symptoms": ["活动后气促", "夜间阵发性呼吸困难", "端坐呼吸", "双下肢水肿", "乏力", "咳嗽"],
+      "risk_factors": ["冠心病", "高血压", "心肌病", "瓣膜病", "长期大量饮酒"],
+      "examinations": [
+        {"name": "脑钠肽", "findings": "BNP或NT-proBNP显著升高"},
+        {"name": "超声心动图", "findings": "射血分数降低或舒张功能异常"},
+        {"name": "胸部X线", "findings": "心影增大，肺淤血表现"},
+        {"name": "心电图", "findings": "可提示陈旧性心梗或左室肥厚"}
+      ],
+      "treatments": ["利尿剂", "ACEI/ARB", "β受体阻滞剂", "螺内酯"],
+      "distinguishing_features": ["夜间阵发性呼吸困难", "双下肢对称性凹陷性水肿", "BNP显著升高"],
+      "patient_profile": {
+        "age_range": [55, 85],
+        "gender_bias": "any",
+        "symptom_weights": {"活动后气促": 1.0, "夜间阵发性呼吸困难": 0.8, "端坐呼吸": 0.7, "双下肢水肿": 0.8, "乏力": 0.6, "咳嗽": 0.3},
+        "history_bias": ["冠心病", "高血压"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "CARD-005",
+      "name": "心房颤动",
+      "department": "心内科",
+      "symptoms": ["心悸", "脉搏不规则", "胸闷", "乏力", "头晕", "气短"],
+      "risk_factors": ["高血压", "高龄", "甲亢", "瓣膜病", "饮酒"],
+      "examinations": [
+        {"name": "心电图", "findings": "P波消失，RR间期绝对不齐，出现f波"},
+        {"name": "动态心电图", "findings": "阵发性房颤记录到发作"},
+        {"name": "超声心动图", "findings": "左房增大或瓣膜病变"}
+      ],
+      "treatments": ["抗凝治疗（华法林/NOAC）", "控制心室率", "电复律或导管消融"],
+      "distinguishing_features": ["脉搏绝对不齐", "心电图RR间期绝对不等", "出现心房颤动f波"],
+      "patient_profile": {
+        "age_range": [55, 85],
+        "gender_bias": "any",
+        "symptom_weights": {"心悸": 1.0, "脉搏不规则": 0.9, "胸闷": 0.5, "乏力": 0.5, "头晕": 0.4, "气短": 0.4},
+        "history_bias": ["高血压", "高龄"],
+        "exam_hit_rate": 0.92
+      }
+    },
+    {
+      "id": "CARD-006",
+      "name": "病毒性心肌炎",
+      "department": "心内科",
+      "symptoms": ["前驱上感史", "发热", "乏力", "胸痛", "心悸", "气短", "肌痛"],
+      "risk_factors": ["病毒感染（柯萨奇B组病毒）", "青壮年", "过度劳累", "免疫状态低下"],
+      "examinations": [
+        {"name": "心肌酶", "findings": "肌钙蛋白升高"},
+        {"name": "心电图", "findings": "ST-T改变，出现各类心律失常"},
+        {"name": "超声心动图", "findings": "节段性室壁运动异常或心功能下降"},
+        {"name": "病毒血清学", "findings": "抗心肌抗体或病毒抗体阳性"}
+      ],
+      "treatments": ["休息", "重症抗病毒或免疫调节", "对症支持", "心衰治疗"],
+      "distinguishing_features": ["发病前1-3周有病毒感染史", "患者多年轻", "心肌酶升高伴心律失常"],
+      "patient_profile": {
+        "age_range": [18, 40],
+        "gender_bias": "any",
+        "symptom_weights": {"前驱上感史": 0.8, "发热": 0.7, "乏力": 0.8, "胸痛": 0.6, "心悸": 0.7, "气短": 0.5, "肌痛": 0.4},
+        "history_bias": ["病毒感染", "过度劳累"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "CARD-007",
+      "name": "风湿性心脏病",
+      "department": "心内科",
+      "symptoms": ["心悸", "气促", "咳嗽", "咯血", "关节游走性疼痛", "发热", "乏力"],
+      "risk_factors": ["青少年时期链球菌感染", "居住拥挤", "反复扁桃体炎", "女性"],
+      "examinations": [
+        {"name": "超声心动图", "findings": "二尖瓣狭窄或关闭不全，瓣叶增厚钙化"},
+        {"name": "心电图", "findings": "二尖瓣P波或心房颤动"},
+        {"name": "抗链球菌溶血素O", "findings": "ASO升高"},
+        {"name": "血沉/CRP", "findings": "炎症指标升高"}
+      ],
+      "treatments": ["青霉素预防风湿热复发", "利尿剂", "抗凝（合并房颤）", "瓣膜置换术"],
+      "distinguishing_features": ["既往风湿热或链球菌感染史", "二尖瓣狭窄特征杂音", "超声见瓣膜病变"],
+      "patient_profile": {
+        "age_range": [30, 60],
+        "gender_bias": "female",
+        "symptom_weights": {"心悸": 0.7, "气促": 0.8, "咳嗽": 0.5, "咯血": 0.3, "关节游走性疼痛": 0.6, "发热": 0.5, "乏力": 0.6},
+        "history_bias": ["反复扁桃体炎", "风湿热史"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "CARD-008",
+      "name": "主动脉夹层",
+      "department": "心内科",
+      "symptoms": ["突发胸背部撕裂样疼痛", "疼痛向颈部腹部放射", "晕厥", "大汗", "呼吸困难", "肢体麻木"],
+      "risk_factors": ["高血压", "马凡综合征", "主动脉瓣二叶畸形", "高龄", "妊娠"],
+      "examinations": [
+        {"name": "主动脉CTA", "findings": "见主动脉内膜瓣和真假腔"},
+        {"name": "超声心动图", "findings": "主动脉内膜撕裂征象"},
+        {"name": "胸部X线", "findings": "纵隔影增宽"}
+      ],
+      "treatments": ["控制心率血压（β受体阻滞剂+硝普钠）", "急诊手术或腔内修复"],
+      "distinguishing_features": ["撕裂样剧痛且迅速转移", "双上肢血压差超过20mmHg", "主动脉CTA见内膜瓣"],
+      "patient_profile": {
+        "age_range": [50, 75],
+        "gender_bias": "male",
+        "symptom_weights": {"突发胸背部撕裂样疼痛": 1.0, "疼痛向颈部腹部放射": 0.8, "晕厥": 0.4, "大汗": 0.7, "呼吸困难": 0.3, "肢体麻木": 0.3},
+        "history_bias": ["高血压"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "RESP-001",
+      "name": "社区获得性肺炎",
+      "department": "呼吸科",
+      "symptoms": ["发热", "咳嗽", "咳黄脓痰", "胸痛", "呼吸困难", "乏力", "呼吸急促"],
+      "risk_factors": ["高龄", "吸烟", "慢性肺病", "免疫功能低下", "冬春季"],
+      "examinations": [
+        {"name": "血常规", "findings": "白细胞和中性粒细胞升高"},
+        {"name": "CRP", "findings": "显著升高"},
+        {"name": "胸部CT", "findings": "肺叶或肺段实变影或磨玻璃影"},
+        {"name": "痰培养", "findings": "病原菌生长"}
+      ],
+      "treatments": ["经验性抗生素", "对症退热止咳", "重症氧疗", "根据痰培养调整抗生素"],
+      "distinguishing_features": ["发热伴肺部实变体征", "胸片或CT新发浸润影", "炎症指标升高"],
+      "patient_profile": {
+        "age_range": [30, 80],
+        "gender_bias": "any",
+        "symptom_weights": {"发热": 0.9, "咳嗽": 1.0, "咳黄脓痰": 0.8, "胸痛": 0.5, "呼吸困难": 0.6, "乏力": 0.6, "呼吸急促": 0.5},
+        "history_bias": ["吸烟", "高龄"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "RESP-002",
+      "name": "慢性阻塞性肺疾病",
+      "aliases": ["慢阻肺", "COPD"],
+      "department": "呼吸科",
+      "symptoms": ["慢性咳嗽", "咳白色黏液痰", "活动后气促", "喘息", "胸闷", "晨起咳嗽加重"],
+      "risk_factors": ["长期吸烟", "职业粉尘暴露", "生物燃料烟雾", "反复呼吸道感染"],
+      "examinations": [
+        {"name": "肺功能", "findings": "吸入支气管扩张剂后FEV1/FVC小于0.7"},
+        {"name": "胸部CT", "findings": "肺气肿征象，肺过度充气"},
+        {"name": "血气分析", "findings": "低氧血症或高碳酸血症"}
+      ],
+      "treatments": ["戒烟", "支气管扩张剂（LAMA/LABA）", "吸入糖皮质激素", "长期家庭氧疗"],
+      "distinguishing_features": ["中年以上吸烟者", "活动后气促进行性加重", "FEV1/FVC小于0.7"],
+      "patient_profile": {
+        "age_range": [55, 85],
+        "gender_bias": "any",
+        "symptom_weights": {"慢性咳嗽": 0.9, "咳白色黏液痰": 0.8, "活动后气促": 1.0, "喘息": 0.6, "胸闷": 0.5, "晨起咳嗽加重": 0.6},
+        "history_bias": ["长期吸烟", "职业粉尘暴露"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "RESP-003",
+      "name": "支气管哮喘",
+      "aliases": ["哮喘"],
+      "department": "呼吸科",
+      "symptoms": ["发作性喘息", "呼气性呼吸困难", "胸闷", "咳嗽", "夜间或凌晨发作", "接触过敏原后加重"],
+      "risk_factors": ["过敏体质", "家族史", "过敏性鼻炎", "动物毛发或花粉暴露", "运动诱发"],
+      "examinations": [
+        {"name": "肺功能", "findings": "支气管舒张试验阳性，FEV1改善≥12%"},
+        {"name": "呼出气一氧化氮", "findings": "FeNO升高"},
+        {"name": "过敏原检测", "findings": "特异性IgE阳性"}
+      ],
+      "treatments": ["吸入β2受体激动剂缓解症状", "吸入糖皮质激素", "白三烯受体拮抗剂", "避免过敏原"],
+      "distinguishing_features": ["发作性喘息伴可逆性气流受限", "夜间或凌晨发作", "支气管舒张试验阳性"],
+      "patient_profile": {
+        "age_range": [10, 50],
+        "gender_bias": "any",
+        "symptom_weights": {"发作性喘息": 1.0, "呼气性呼吸困难": 0.8, "胸闷": 0.6, "咳嗽": 0.7, "夜间或凌晨发作": 0.8, "接触过敏原后加重": 0.7},
+        "history_bias": ["过敏体质", "过敏性鼻炎", "家族史"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "RESP-004",
+      "name": "肺结核",
+      "department": "呼吸科",
+      "symptoms": ["午后低热", "盗汗", "咳嗽", "咳痰", "痰中带血", "胸痛", "乏力", "体重下降"],
+      "risk_factors": ["与结核病人密切接触", "免疫功能低下", "营养不良", "糖尿病", "长期使用免疫抑制剂"],
+      "examinations": [
+        {"name": "胸片或CT", "findings": "上肺尖后段浸润影，可形成空洞"},
+        {"name": "痰抗酸染色", "findings": "抗酸杆菌阳性"},
+        {"name": "结核菌素试验或γ干扰素释放试验", "findings": "阳性"},
+        {"name": "痰培养", "findings": "结核分枝杆菌生长"}
+      ],
+      "treatments": ["异烟肼", "利福平", "吡嗪酰胺", "乙胺丁醇"],
+      "distinguishing_features": ["午后低热盗汗", "痰中带血", "上肺空洞", "痰涂片抗酸杆菌阳性"],
+      "patient_profile": {
+        "age_range": [20, 60],
+        "gender_bias": "any",
+        "symptom_weights": {"午后低热": 0.9, "盗汗": 0.9, "咳嗽": 0.8, "咳痰": 0.6, "痰中带血": 0.6, "胸痛": 0.4, "乏力": 0.7, "体重下降": 0.7},
+        "history_bias": ["与结核病人密切接触", "糖尿病"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "RESP-005",
+      "name": "流行性感冒",
+      "aliases": ["流感"],
+      "department": "呼吸科",
+      "symptoms": ["高热", "寒战", "肌肉酸痛", "乏力", "头痛", "咽痛", "干咳", "鼻塞"],
+      "risk_factors": ["冬春季", "人群密集场所", "免疫力低下", "慢性基础病", "未接种疫苗"],
+      "examinations": [
+        {"name": "流感抗原检测", "findings": "甲型或乙型流感病毒抗原阳性"},
+        {"name": "流感病毒核酸检测", "findings": "阳性"},
+        {"name": "血常规", "findings": "白细胞正常或偏低"}
+      ],
+      "treatments": ["奥司他韦（48小时内）", "对症退热", "休息补水"],
+      "distinguishing_features": ["起病急骤高热寒战", "全身肌肉酸痛明显", "流感核酸或抗原阳性"],
+      "patient_profile": {
+        "age_range": [5, 70],
+        "gender_bias": "any",
+        "symptom_weights": {"高热": 1.0, "寒战": 0.8, "肌肉酸痛": 0.9, "乏力": 0.8, "头痛": 0.7, "咽痛": 0.6, "干咳": 0.7, "鼻塞": 0.5},
+        "history_bias": ["冬春季", "人群密集场所"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "RESP-006",
+      "name": "急性上呼吸道感染",
+      "aliases": ["普通感冒", "感冒"],
+      "department": "呼吸科",
+      "symptoms": ["鼻塞", "流清涕", "打喷嚏", "咽痛", "轻微咳嗽", "低热", "头痛"],
+      "risk_factors": ["受凉", "季节交替", "免疫力下降", "人群密集"],
+      "examinations": [
+        {"name": "血常规", "findings": "多正常或轻度异常"},
+        {"name": "咽拭子检查", "findings": "多为阴性"},
+        {"name": "胸部X线", "findings": "正常"}
+      ],
+      "treatments": ["对症治疗（解热镇痛）", "休息", "多饮水"],
+      "distinguishing_features": ["鼻部卡他症状为主", "全身症状轻", "高热少见", "胸部影像正常"],
+      "patient_profile": {
+        "age_range": [5, 60],
+        "gender_bias": "any",
+        "symptom_weights": {"鼻塞": 0.9, "流清涕": 0.8, "打喷嚏": 0.8, "咽痛": 0.6, "轻微咳嗽": 0.6, "低热": 0.4, "头痛": 0.4},
+        "history_bias": ["受凉"],
+        "exam_hit_rate": 0.95
+      }
+    },
+    {
+      "id": "RESP-007",
+      "name": "支气管扩张症",
+      "department": "呼吸科",
+      "symptoms": ["慢性咳嗽", "大量浓痰", "反复咯血", "反复肺部感染", "发热", "消瘦", "杵状指"],
+      "risk_factors": ["幼年麻疹或百日咳", "反复肺部感染", "免疫缺陷", "慢性气道阻塞"],
+      "examinations": [
+        {"name": "胸部高分辨CT", "findings": "支气管呈柱状或囊状扩张，轨道征"},
+        {"name": "痰培养", "findings": "常见铜绿假单胞菌"},
+        {"name": "支气管镜", "findings": "可见管腔扩张"}
+      ],
+      "treatments": ["体位引流排痰", "抗生素控制感染", "支气管舒张剂", "咯血介入栓塞"],
+      "distinguishing_features": ["长期咳大量脓痰", "反复咯血", "HRCT示支气管扩张"],
+      "patient_profile": {
+        "age_range": [30, 70],
+        "gender_bias": "any",
+        "symptom_weights": {"慢性咳嗽": 0.9, "大量浓痰": 0.9, "反复咯血": 0.7, "反复肺部感染": 0.8, "发热": 0.6, "消瘦": 0.5, "杵状指": 0.5},
+        "history_bias": ["幼年反复感染"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "RESP-008",
+      "name": "肺栓塞",
+      "department": "呼吸科",
+      "symptoms": ["突发呼吸困难", "胸痛", "咯血", "晕厥", "心悸", "咳嗽", "下肢肿胀疼痛"],
+      "risk_factors": ["长期卧床", "手术或创伤后", "深静脉血栓", "肿瘤", "妊娠或口服避孕药"],
+      "examinations": [
+        {"name": "D-二聚体", "findings": "显著升高"},
+        {"name": "CT肺动脉造影", "findings": "肺动脉充盈缺损"},
+        {"name": "下肢静脉超声", "findings": "深静脉血栓"},
+        {"name": "血气分析", "findings": "低氧血症"}
+      ],
+      "treatments": ["抗凝治疗（低分子肝素/华法林/NOAC）", "大面积溶栓", "下腔静脉滤器"],
+      "distinguishing_features": ["突发呼吸困难和胸痛", "存在制动或手术等危险因素", "CT肺动脉充盈缺损", "下肢深静脉血栓"],
+      "patient_profile": {
+        "age_range": [40, 80],
+        "gender_bias": "any",
+        "symptom_weights": {"突发呼吸困难": 1.0, "胸痛": 0.7, "咯血": 0.4, "晕厥": 0.4, "心悸": 0.5, "咳嗽": 0.4, "下肢肿胀疼痛": 0.6},
+        "history_bias": ["长期卧床", "手术或创伤后", "深静脉血栓"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "GI-001",
+      "name": "胃食管反流病",
+      "department": "消化科",
+      "symptoms": ["反酸", "烧心", "胸骨后灼痛", "嗳气", "咽部异物感", "夜间咳嗽"],
+      "risk_factors": ["肥胖", "高脂饮食", "吸烟", "饮酒", "妊娠", "食管裂孔疝"],
+      "examinations": [
+        {"name": "胃镜", "findings": "食管下段黏膜糜烂，反流性食管炎"},
+        {"name": "24小时食管pH监测", "findings": "酸反流时间增加"},
+        {"name": "食管测压", "findings": "下食管括约肌压力降低"}
+      ],
+      "treatments": ["质子泵抑制剂", "促胃肠动力药", "生活方式改变", "抗反流手术"],
+      "distinguishing_features": ["烧心反酸与体位相关", "胃镜食管下段糜烂", "24小时pH监测反流增加"],
+      "patient_profile": {
+        "age_range": [30, 70],
+        "gender_bias": "any",
+        "symptom_weights": {"反酸": 1.0, "烧心": 1.0, "胸骨后灼痛": 0.7, "嗳气": 0.5, "咽部异物感": 0.4, "夜间咳嗽": 0.4},
+        "history_bias": ["肥胖", "高脂饮食", "饮酒"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "GI-002",
+      "name": "消化性溃疡",
+      "department": "消化科",
+      "symptoms": ["上腹痛", "饥饿痛", "夜间痛", "进食后缓解", "反酸", "嗳气", "恶心", "黑便"],
+      "risk_factors": ["幽门螺杆菌感染", "NSAIDs使用", "吸烟", "饮酒", "精神应激"],
+      "examinations": [
+        {"name": "胃镜", "findings": "胃或十二指肠黏膜溃疡灶"},
+        {"name": "幽门螺杆菌检测", "findings": "C13呼气试验或快速尿素酶阳性"},
+        {"name": "便潜血", "findings": "可阳性"}
+      ],
+      "treatments": ["质子泵抑制剂", "根除幽门螺杆菌", "停用NSAIDs", "黏膜保护剂"],
+      "distinguishing_features": ["周期性节律性上腹痛", "夜间痛或饥饿痛", "胃镜见溃疡", "幽门螺杆菌阳性"],
+      "patient_profile": {
+        "age_range": [20, 60],
+        "gender_bias": "any",
+        "symptom_weights": {"上腹痛": 1.0, "饥饿痛": 0.8, "夜间痛": 0.7, "进食后缓解": 0.7, "反酸": 0.6, "嗳气": 0.5, "恶心": 0.4, "黑便": 0.3},
+        "history_bias": ["幽门螺杆菌感染", "NSAIDs使用"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "GI-003",
+      "name": "急性胰腺炎",
+      "department": "消化科",
+      "symptoms": ["突发上腹部剧痛", "疼痛向腰背部放射", "恶心呕吐", "腹胀", "发热", "黄疸"],
+      "risk_factors": ["胆石症", "大量饮酒", "高脂血症", "ERCP术后", "高钙血症"],
+      "examinations": [
+        {"name": "血淀粉酶", "findings": "升高超过正常上限3倍"},
+        {"name": "血脂肪酶", "findings": "显著升高"},
+        {"name": "腹部CT", "findings": "胰腺肿大，周围渗出"},
+        {"name": "血脂", "findings": "甘油三酯可显著升高"}
+      ],
+      "treatments": ["禁食水", "液体复苏", "镇痛", "抑制胰腺分泌", "重症监护"],
+      "distinguishing_features": ["上腹剧痛向腰背放射", "血淀粉酶或脂肪酶升高3倍以上", "常有胆石或饮酒诱因"],
+      "patient_profile": {
+        "age_range": [30, 70],
+        "gender_bias": "any",
+        "symptom_weights": {"突发上腹部剧痛": 1.0, "疼痛向腰背部放射": 0.8, "恶心呕吐": 0.8, "腹胀": 0.6, "发热": 0.5, "黄疸": 0.3},
+        "history_bias": ["胆石症", "大量饮酒", "高脂血症"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "GI-004",
+      "name": "肝硬化",
+      "department": "消化科",
+      "symptoms": ["乏力", "食欲减退", "腹胀", "黄疸", "蜘蛛痣", "肝掌", "腹围增大", "牙龈出血"],
+      "risk_factors": ["乙肝或丙肝感染", "长期大量饮酒", "脂肪肝", "自身免疫性肝病", "药物性肝损伤"],
+      "examinations": [
+        {"name": "肝功能", "findings": "白蛋白降低，胆红素升高，转氨酶异常"},
+        {"name": "腹部超声", "findings": "肝脏缩小表面不光滑，脾大，腹水"},
+        {"name": "腹部CT", "findings": "肝叶比例失调，门静脉增宽"},
+        {"name": "凝血功能", "findings": "凝血酶原时间延长"}
+      ],
+      "treatments": ["病因治疗（抗病毒或戒酒）", "利尿剂治疗腹水", "输注白蛋白", "门脉高压并发症处理"],
+      "distinguishing_features": ["慢性肝病史", "蜘蛛痣肝掌", "肝硬化和门脉高压影像表现", "腹水"],
+      "patient_profile": {
+        "age_range": [40, 70],
+        "gender_bias": "any",
+        "symptom_weights": {"乏力": 0.8, "食欲减退": 0.7, "腹胀": 0.7, "黄疸": 0.6, "蜘蛛痣": 0.6, "肝掌": 0.6, "腹围增大": 0.6, "牙龈出血": 0.4},
+        "history_bias": ["乙肝", "长期大量饮酒"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "GI-005",
+      "name": "急性胆囊炎",
+      "department": "消化科",
+      "symptoms": ["右上腹痛", "疼痛向右肩部放射", "恶心呕吐", "发热", "黄疸", "油腻食物后诱发"],
+      "risk_factors": ["胆囊结石", "女性", "肥胖", "多产次", "快速减重"],
+      "examinations": [
+        {"name": "腹部超声", "findings": "胆囊增大，壁增厚，胆囊结石，Murphy征阳性"},
+        {"name": "血常规", "findings": "白细胞升高"},
+        {"name": "CRP", "findings": "升高"},
+        {"name": "肝功能", "findings": "胆红素和转氨酶可轻度升高"}
+      ],
+      "treatments": ["禁食", "抗生素", "解痉镇痛", "胆囊切除术"],
+      "distinguishing_features": ["右上腹绞痛向右肩放射", "油腻餐后诱发", "Murphy征阳性", "超声见胆囊结石"],
+      "patient_profile": {
+        "age_range": [30, 70],
+        "gender_bias": "female",
+        "symptom_weights": {"右上腹痛": 1.0, "疼痛向右肩部放射": 0.8, "恶心呕吐": 0.7, "发热": 0.7, "黄疸": 0.4, "油腻食物后诱发": 0.8},
+        "history_bias": ["胆囊结石", "肥胖"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "GI-006",
+      "name": "溃疡性结肠炎",
+      "department": "消化科",
+      "symptoms": ["反复腹泻", "黏液脓血便", "腹痛", "里急后重", "发热", "消瘦", "关节痛"],
+      "risk_factors": ["家族史", "肠道菌群失调", "自身免疫异常", "高脂饮食", "精神压力"],
+      "examinations": [
+        {"name": "结肠镜", "findings": "直肠开始的连续性弥漫性黏膜糜烂溃疡"},
+        {"name": "粪便检查", "findings": "潜血阳性，病原学阴性"},
+        {"name": "病理活检", "findings": "隐窝炎和隐窝脓肿"},
+        {"name": "CRP/ESR", "findings": "升高"}
+      ],
+      "treatments": ["美沙拉嗪", "糖皮质激素（中重度）", "免疫抑制剂", "生物制剂"],
+      "distinguishing_features": ["黏液脓血便伴里急后重", "结肠镜直肠起始连续性病变", "慢性反复病程"],
+      "patient_profile": {
+        "age_range": [20, 50],
+        "gender_bias": "any",
+        "symptom_weights": {"反复腹泻": 0.9, "黏液脓血便": 1.0, "腹痛": 0.8, "里急后重": 0.8, "发热": 0.4, "消瘦": 0.5, "关节痛": 0.4},
+        "history_bias": ["家族史", "精神压力"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "GI-007",
+      "name": "肠易激综合征",
+      "department": "消化科",
+      "symptoms": ["腹痛", "排便后腹痛缓解", "腹泻", "便秘或腹泻便秘交替", "腹胀", "排便不尽感", "黏液便"],
+      "risk_factors": ["精神紧张", "焦虑抑郁", "食物不耐受", "肠道感染后", "女性"],
+      "examinations": [
+        {"name": "结肠镜", "findings": "黏膜正常，排除器质性病变"},
+        {"name": "便常规", "findings": "正常"},
+        {"name": "腹部超声", "findings": "无异常"}
+      ],
+      "treatments": ["生活方式与饮食调整", "解痉药", "益生菌", "心理治疗"],
+      "distinguishing_features": ["腹痛与排便相关且排便后缓解", "便常规和结肠镜无器质病变", "慢性反复但总体状态良好"],
+      "patient_profile": {
+        "age_range": [20, 50],
+        "gender_bias": "female",
+        "symptom_weights": {"腹痛": 1.0, "排便后腹痛缓解": 0.9, "腹泻": 0.7, "便秘或腹泻便秘交替": 0.6, "腹胀": 0.7, "排便不尽感": 0.6, "黏液便": 0.4},
+        "history_bias": ["精神紧张", "焦虑"],
+        "exam_hit_rate": 0.8
+      }
+    },
+    {
+      "id": "GI-008",
+      "name": "慢性胃炎",
+      "department": "消化科",
+      "symptoms": ["上腹隐痛", "上腹饱胀", "嗳气", "食欲减退", "恶心", "反酸"],
+      "risk_factors": ["幽门螺杆菌感染", "长期刺激性饮食", "NSAIDs", "吸烟饮酒", "胆汁反流"],
+      "examinations": [
+        {"name": "胃镜", "findings": "胃黏膜充血水肿糜烂或萎缩"},
+        {"name": "幽门螺杆菌检测", "findings": "可阳性"},
+        {"name": "病理活检", "findings": "炎症或萎缩肠化改变"}
+      ],
+      "treatments": ["根除幽门螺杆菌", "质子泵抑制剂", "胃黏膜保护剂", "饮食调整"],
+      "distinguishing_features": ["上腹隐痛饱胀但无节律性剧痛", "胃镜黏膜炎症改变", "病程迁延"],
+      "patient_profile": {
+        "age_range": [30, 70],
+        "gender_bias": "any",
+        "symptom_weights": {"上腹隐痛": 0.9, "上腹饱胀": 0.8, "嗳气": 0.6, "食欲减退": 0.5, "恶心": 0.4, "反酸": 0.5},
+        "history_bias": ["幽门螺杆菌感染", "刺激性饮食"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "NEURO-001",
+      "name": "缺血性脑卒中",
+      "aliases": ["脑梗死", "脑梗塞"],
+      "department": "神经内科",
+      "symptoms": ["突发一侧肢体无力", "言语不清", "口角歪斜", "面部麻木", "头晕", "视物模糊", "行走不稳"],
+      "risk_factors": ["高血压", "糖尿病", "房颤", "高脂血症", "吸烟", "高龄"],
+      "examinations": [
+        {"name": "头颅CT", "findings": "早期可正常，用于排除脑出血"},
+        {"name": "头颅MRI", "findings": "DWI示急性梗死灶"},
+        {"name": "颈动脉超声", "findings": "颈动脉狭窄或斑块"},
+        {"name": "血糖血脂", "findings": "危险因素异常"}
+      ],
+      "treatments": ["静脉溶栓（4.5小时内）", "抗血小板治疗", "他汀", "康复治疗"],
+      "distinguishing_features": ["急性局灶性神经功能缺损", "DWI弥散受限", "头颅CT无出血"],
+      "patient_profile": {
+        "age_range": [50, 85],
+        "gender_bias": "any",
+        "symptom_weights": {"突发一侧肢体无力": 1.0, "言语不清": 0.8, "口角歪斜": 0.8, "面部麻木": 0.5, "头晕": 0.4, "视物模糊": 0.4, "行走不稳": 0.5},
+        "history_bias": ["高血压", "糖尿病", "房颤"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "NEURO-002",
+      "name": "脑出血",
+      "department": "神经内科",
+      "symptoms": ["突发剧烈头痛", "恶心呕吐", "意识障碍", "血压显著升高", "肢体瘫痪", "言语不清"],
+      "risk_factors": ["高血压", "脑血管畸形", "动脉瘤", "抗凝药使用", "高龄"],
+      "examinations": [
+        {"name": "头颅CT", "findings": "脑实质高密度出血灶"},
+        {"name": "头颅MRI", "findings": "血肿信号"},
+        {"name": "血常规凝血", "findings": "可发现凝血异常"}
+      ],
+      "treatments": ["控制血压", "降颅压", "部分手术清除血肿", "对症支持"],
+      "distinguishing_features": ["突发头痛呕吐意识障碍", "头颅CT高密度灶", "血压显著升高"],
+      "patient_profile": {
+        "age_range": [45, 80],
+        "gender_bias": "any",
+        "symptom_weights": {"突发剧烈头痛": 1.0, "恶心呕吐": 0.8, "意识障碍": 0.7, "血压显著升高": 0.7, "肢体瘫痪": 0.7, "言语不清": 0.6},
+        "history_bias": ["高血压"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "NEURO-003",
+      "name": "偏头痛",
+      "department": "神经内科",
+      "symptoms": ["单侧搏动性头痛", "恶心呕吐", "畏光畏声", "视觉先兆", "活动后头痛加重", "面色苍白"],
+      "risk_factors": ["女性", "家族史", "月经周期", "睡眠不足", "特定食物"],
+      "examinations": [
+        {"name": "头颅MRI", "findings": "多正常，排除器质性病变"},
+        {"name": "脑电图", "findings": "多正常"},
+        {"name": "神经系统检查", "findings": "正常"}
+      ],
+      "treatments": ["曲普坦类药物", "非甾体抗炎药", "预防性用药（β受体阻滞剂等）", "避免诱因"],
+      "distinguishing_features": ["反复发作单侧搏动性头痛", "伴恶心畏光畏声", "发作间歇期完全正常"],
+      "patient_profile": {
+        "age_range": [15, 50],
+        "gender_bias": "female",
+        "symptom_weights": {"单侧搏动性头痛": 1.0, "恶心呕吐": 0.7, "畏光畏声": 0.8, "视觉先兆": 0.4, "活动后头痛加重": 0.7, "面色苍白": 0.3},
+        "history_bias": ["家族史", "月经周期", "睡眠不足"],
+        "exam_hit_rate": 0.8
+      }
+    },
+    {
+      "id": "NEURO-004",
+      "name": "癫痫",
+      "department": "神经内科",
+      "symptoms": ["突然意识丧失", "四肢抽搐", "口吐白沫", "双眼上翻", "牙关紧闭", "大小便失禁", "发作后嗜睡"],
+      "risk_factors": ["脑外伤", "颅内感染", "脑血管病", "遗传性", "高热惊厥史"],
+      "examinations": [
+        {"name": "脑电图", "findings": "痫样放电"},
+        {"name": "头颅MRI", "findings": "寻找结构性病因"},
+        {"name": "血生化", "findings": "排除代谢性病因"}
+      ],
+      "treatments": ["抗癫痫药物（丙戊酸或左乙拉西坦等）", "避免诱因", "癫痫持续状态急诊处理"],
+      "distinguishing_features": ["反复刻板发作", "脑电图痫样放电", "发作后意识恢复"],
+      "patient_profile": {
+        "age_range": [5, 60],
+        "gender_bias": "any",
+        "symptom_weights": {"突然意识丧失": 1.0, "四肢抽搐": 0.9, "口吐白沫": 0.7, "双眼上翻": 0.7, "牙关紧闭": 0.6, "大小便失禁": 0.4, "发作后嗜睡": 0.6},
+        "history_bias": ["脑外伤", "颅内感染"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "NEURO-005",
+      "name": "帕金森病",
+      "department": "神经内科",
+      "symptoms": ["静止性震颤", "肌强直", "行动迟缓", "步态不稳", "小碎步", "面具脸", "便秘", "睡眠障碍"],
+      "risk_factors": ["高龄", "家族史", "男性", "农药暴露", "脑外伤史"],
+      "examinations": [
+        {"name": "头颅MRI", "findings": "多正常或非特异性改变"},
+        {"name": "多巴胺转运蛋白显像", "findings": "纹状体摄取减低"},
+        {"name": "左旋多巴试验", "findings": "反应良好"}
+      ],
+      "treatments": ["左旋多巴", "多巴胺受体激动剂", "MAO-B抑制剂", "康复训练"],
+      "distinguishing_features": ["静止性震颤", "肌强直和运动迟缓三联征", "左旋多巴有效"],
+      "patient_profile": {
+        "age_range": [55, 85],
+        "gender_bias": "any",
+        "symptom_weights": {"静止性震颤": 1.0, "肌强直": 0.8, "行动迟缓": 0.9, "步态不稳": 0.7, "小碎步": 0.6, "面具脸": 0.7, "便秘": 0.5, "睡眠障碍": 0.5},
+        "history_bias": ["高龄", "家族史"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "NEURO-006",
+      "name": "阿尔茨海默病",
+      "department": "神经内科",
+      "symptoms": ["进行性记忆力减退", "近期记忆减退明显", "语言障碍", "时间地点定向障碍", "计算能力下降", "情绪行为改变", "生活能力下降"],
+      "risk_factors": ["高龄", "家族史", "APOEε4", "心血管危险因素", "低教育水平"],
+      "examinations": [
+        {"name": "头颅MRI", "findings": "海马和内侧颞叶萎缩"},
+        {"name": "认知量表", "findings": "MMSE或MoCA明显减退"},
+        {"name": "脑脊液生物标志物", "findings": "Aβ42降低，tau升高"}
+      ],
+      "treatments": ["胆碱酯酶抑制剂", "美金刚", "认知训练", "对症精神行为干预"],
+      "distinguishing_features": ["隐袭起病进行性加重的记忆认知障碍", "海马萎缩", "排除谵妄和其他病因"],
+      "patient_profile": {
+        "age_range": [65, 90],
+        "gender_bias": "any",
+        "symptom_weights": {"进行性记忆力减退": 1.0, "近期记忆减退明显": 0.9, "语言障碍": 0.6, "时间地点定向障碍": 0.7, "计算能力下降": 0.6, "情绪行为改变": 0.6, "生活能力下降": 0.7},
+        "history_bias": ["高龄", "家族史"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "NEURO-007",
+      "name": "面神经炎",
+      "aliases": ["面瘫", "特发性面神经麻痹"],
+      "department": "神经内科",
+      "symptoms": ["突发一侧面部表情肌瘫痪", "额纹消失", "眼睑闭合不全", "口角歪斜", "耳后疼痛", "流涎", "味觉减退"],
+      "risk_factors": ["受凉", "病毒感染", "劳累", "免疫力下降", "糖尿病"],
+      "examinations": [
+        {"name": "头颅CT或MRI", "findings": "排除中枢性病变，多正常"},
+        {"name": "神经电生理", "findings": "面神经传导异常"},
+        {"name": "血糖", "findings": "排除糖尿病"}
+      ],
+      "treatments": ["糖皮质激素（早期）", "抗病毒（考虑病毒性时）", "神经营养", "眼部保护"],
+      "distinguishing_features": ["起病急", "额纹消失（周围性面瘫）", "无肢体瘫痪等中枢症状"],
+      "patient_profile": {
+        "age_range": [20, 60],
+        "gender_bias": "any",
+        "symptom_weights": {"突发一侧面部表情肌瘫痪": 1.0, "额纹消失": 0.9, "眼睑闭合不全": 0.8, "口角歪斜": 0.8, "耳后疼痛": 0.5, "流涎": 0.4, "味觉减退": 0.4},
+        "history_bias": ["受凉", "劳累"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "NEURO-008",
+      "name": "短暂性脑缺血发作",
+      "aliases": ["TIA"],
+      "department": "神经内科",
+      "symptoms": ["一过性单侧肢体无力", "一过性言语不清", "一过性口角歪斜", "一过性视物模糊", "一过性头晕", "症状24小时内完全缓解"],
+      "risk_factors": ["高血压", "房颤", "糖尿病", "颈动脉狭窄", "高龄"],
+      "examinations": [
+        {"name": "头颅MRI", "findings": "多数无新发梗死灶"},
+        {"name": "颈动脉超声", "findings": "动脉粥样硬化斑块或狭窄"},
+        {"name": "心电图或动态心电图", "findings": "可发现房颤"},
+        {"name": "血压血糖血脂", "findings": "危险因素异常"}
+      ],
+      "treatments": ["抗血小板", "他汀", "控制危险因素", "必要时颈动脉支架或内膜剥脱"],
+      "distinguishing_features": ["症状发作性且24小时内完全恢复", "影像无对应梗死灶", "高危人群"],
+      "patient_profile": {
+        "age_range": [50, 85],
+        "gender_bias": "any",
+        "symptom_weights": {"一过性单侧肢体无力": 1.0, "一过性言语不清": 0.8, "一过性口角歪斜": 0.7, "一过性视物模糊": 0.5, "一过性头晕": 0.5, "症状24小时内完全缓解": 0.9},
+        "history_bias": ["高血压", "房颤", "糖尿病"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "ENDO-001",
+      "name": "2型糖尿病",
+      "department": "内分泌科",
+      "symptoms": ["多饮", "多尿", "多食", "体重下降", "乏力", "视物模糊", "皮肤瘙痒", "伤口愈合缓慢"],
+      "risk_factors": ["肥胖", "家族史", "高龄", "缺乏运动", "妊娠糖尿病史"],
+      "examinations": [
+        {"name": "空腹血糖", "findings": "≥7.0mmol/L"},
+        {"name": "口服葡萄糖耐量试验", "findings": "2小时血糖≥11.1mmol/L"},
+        {"name": "糖化血红蛋白", "findings": "≥6.5%"},
+        {"name": "尿糖", "findings": "阳性"}
+      ],
+      "treatments": ["生活方式干预", "二甲双胍", "磺脲类或DPP-4或SGLT2抑制剂", "必要时胰岛素"],
+      "distinguishing_features": ["中老年起病", "肥胖", "空腹或餐后血糖升高", "糖化血红蛋白升高"],
+      "patient_profile": {
+        "age_range": [40, 80],
+        "gender_bias": "any",
+        "symptom_weights": {"多饮": 0.9, "多尿": 0.9, "多食": 0.6, "体重下降": 0.6, "乏力": 0.6, "视物模糊": 0.4, "皮肤瘙痒": 0.4, "伤口愈合缓慢": 0.5},
+        "history_bias": ["肥胖", "家族史"],
+        "exam_hit_rate": 0.95
+      }
+    },
+    {
+      "id": "ENDO-002",
+      "name": "1型糖尿病",
+      "department": "内分泌科",
+      "symptoms": ["起病急骤", "明显多饮多尿多食", "明显体重下降", "乏力", "恶心呕吐", "呼气有烂苹果味", "酮症酸中毒倾向"],
+      "risk_factors": ["自身免疫", "病毒感染", "遗传易感性", "儿童青少年", "胰岛自身抗体"],
+      "examinations": [
+        {"name": "血糖", "findings": "显著升高"},
+        {"name": "尿酮体", "findings": "阳性"},
+        {"name": "胰岛自身抗体", "findings": "GAD抗体阳性"},
+        {"name": "血酮", "findings": "升高"},
+        {"name": "C肽", "findings": "低水平"}
+      ],
+      "treatments": ["胰岛素替代", "血糖监测", "酮症酸中毒补液和胰岛素纠正"],
+      "distinguishing_features": ["青少年起病急骤", "明显体重下降和酮症倾向", "胰岛自身抗体阳性", "C肽低"],
+      "patient_profile": {
+        "age_range": [5, 30],
+        "gender_bias": "any",
+        "symptom_weights": {"起病急骤": 0.9, "明显多饮多尿多食": 0.9, "明显体重下降": 0.9, "乏力": 0.7, "恶心呕吐": 0.5, "呼气有烂苹果味": 0.5, "酮症酸中毒倾向": 0.8},
+        "history_bias": ["遗传易感性"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "ENDO-003",
+      "name": "甲状腺功能亢进症",
+      "aliases": ["甲亢"],
+      "department": "内分泌科",
+      "symptoms": ["怕热", "多汗", "心悸", "手抖", "易怒", "失眠", "体重下降", "大便次数增多", "突眼"],
+      "risk_factors": ["女性", "家族史", "自身免疫", "精神应激", "碘摄入过多"],
+      "examinations": [
+        {"name": "甲状腺功能", "findings": "FT3和FT4升高，TSH降低"},
+        {"name": "甲状腺自身抗体", "findings": "TRAb阳性"},
+        {"name": "甲状腺超声", "findings": "血流丰富或甲状腺肿大"},
+        {"name": "心率", "findings": "心动过速"}
+      ],
+      "treatments": ["抗甲状腺药物（甲巯咪唑）", "放射性碘治疗", "β受体阻滞剂控制心率", "甲状腺切除术"],
+      "distinguishing_features": ["高代谢症状（怕热多汗心悸手抖）", "FT3和FT4升高TSH降低", "突眼或甲状腺肿大"],
+      "patient_profile": {
+        "age_range": [20, 50],
+        "gender_bias": "female",
+        "symptom_weights": {"怕热": 0.9, "多汗": 0.9, "心悸": 0.9, "手抖": 0.8, "易怒": 0.7, "失眠": 0.6, "体重下降": 0.7, "大便次数增多": 0.6, "突眼": 0.5},
+        "history_bias": ["女性", "家族史"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "ENDO-004",
+      "name": "甲状腺功能减退症",
+      "aliases": ["甲减"],
+      "department": "内分泌科",
+      "symptoms": ["怕冷", "乏力", "嗜睡", "体重增加", "便秘", "记忆力减退", "皮肤干燥", "面部浮肿", "心动过缓"],
+      "risk_factors": ["自身免疫（桥本甲状腺炎）", "甲状腺手术后", "放射性碘治疗", "女性", "碘缺乏"],
+      "examinations": [
+        {"name": "甲状腺功能", "findings": "TSH升高，FT4降低"},
+        {"name": "甲状腺过氧化物酶抗体", "findings": "TPOAb阳性"},
+        {"name": "血脂", "findings": "可升高"}
+      ],
+      "treatments": ["左甲状腺素替代治疗", "定期复查甲状腺功能"],
+      "distinguishing_features": ["低代谢表现（怕冷乏力嗜睡体重增加）", "TSH升高FT4降低", "常伴TPOAb阳性"],
+      "patient_profile": {
+        "age_range": [30, 70],
+        "gender_bias": "female",
+        "symptom_weights": {"怕冷": 0.9, "乏力": 0.8, "嗜睡": 0.7, "体重增加": 0.7, "便秘": 0.6, "记忆力减退": 0.6, "皮肤干燥": 0.7, "面部浮肿": 0.6, "心动过缓": 0.6},
+        "history_bias": ["甲状腺手术后", "碘缺乏"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "ENDO-005",
+      "name": "痛风",
+      "department": "内分泌科",
+      "symptoms": ["突发单关节红肿热痛", "大踇趾关节最常见", "夜间发作", "剧痛难以忍受", "发热", "关节活动受限"],
+      "risk_factors": ["高嘌呤饮食", "饮酒", "男性", "肥胖", "肾功能不全", "利尿剂使用"],
+      "examinations": [
+        {"name": "血尿酸", "findings": "升高"},
+        {"name": "关节超声", "findings": "双轨征"},
+        {"name": "关节液检查", "findings": "尿酸盐结晶"},
+        {"name": "肾功能", "findings": "尿酸排泄异常"}
+      ],
+      "treatments": ["秋水仙碱", "NSAIDs", "降尿酸药物（别嘌醇或非布司他）", "低嘌呤饮食"],
+      "distinguishing_features": ["单关节突发剧痛", "大踇趾常见", "血尿酸升高", "关节液尿酸盐结晶"],
+      "patient_profile": {
+        "age_range": [30, 60],
+        "gender_bias": "male",
+        "symptom_weights": {"突发单关节红肿热痛": 1.0, "大踇趾关节最常见": 0.9, "夜间发作": 0.8, "剧痛难以忍受": 0.9, "发热": 0.4, "关节活动受限": 0.6},
+        "history_bias": ["高嘌呤饮食", "饮酒", "肥胖"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "ENDO-006",
+      "name": "骨质疏松症",
+      "department": "内分泌科",
+      "symptoms": ["骨痛", "腰背痛", "身高缩短", "驼背", "脆性骨折", "乏力"],
+      "risk_factors": ["绝经后女性", "高龄", "低钙摄入", "缺乏运动", "糖皮质激素使用", "吸烟饮酒"],
+      "examinations": [
+        {"name": "双能X线骨密度", "findings": "T值≤-2.5"},
+        {"name": "血钙磷", "findings": "多正常或偏低"},
+        {"name": "25-羟维生素D", "findings": "降低"},
+        {"name": "X线", "findings": "椎体压缩性骨折"}
+      ],
+      "treatments": ["钙剂和维生素D", "双膦酸盐", "降钙素或地舒单抗", "防跌倒"],
+      "distinguishing_features": ["绝经后女性或高龄", "骨密度T值≤-2.5", "低能量骨折史"],
+      "patient_profile": {
+        "age_range": [55, 85],
+        "gender_bias": "female",
+        "symptom_weights": {"骨痛": 0.8, "腰背痛": 0.8, "身高缩短": 0.7, "驼背": 0.6, "脆性骨折": 0.7, "乏力": 0.4},
+        "history_bias": ["绝经后女性", "低钙摄入", "糖皮质激素使用"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "ENDO-007",
+      "name": "库欣综合征",
+      "department": "内分泌科",
+      "symptoms": ["满月脸", "向心性肥胖", "水牛背", "皮肤紫纹", "皮肤变薄", "易瘀斑", "高血压", "高血糖", "月经紊乱"],
+      "risk_factors": ["糖皮质激素长期使用", "垂体瘤", "肾上腺肿瘤", "女性"],
+      "examinations": [
+        {"name": "24小时尿游离皮质醇", "findings": "升高"},
+        {"name": "过夜地塞米松抑制试验", "findings": "不被抑制"},
+        {"name": "血ACTH", "findings": "鉴别垂体或异位或肾上腺病因"},
+        {"name": "肾上腺或垂体影像", "findings": "发现占位"}
+      ],
+      "treatments": ["手术切除病灶", "药物控制皮质醇", "放疗", "对症降压降糖"],
+      "distinguishing_features": ["向心性肥胖满月脸水牛背", "24小时尿皮质醇升高且不被地塞米松抑制", "皮肤紫纹"],
+      "patient_profile": {
+        "age_range": [20, 60],
+        "gender_bias": "female",
+        "symptom_weights": {"满月脸": 0.9, "向心性肥胖": 0.9, "水牛背": 0.8, "皮肤紫纹": 0.8, "皮肤变薄": 0.6, "易瘀斑": 0.6, "高血压": 0.6, "高血糖": 0.5, "月经紊乱": 0.6},
+        "history_bias": ["糖皮质激素长期使用"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "ENDO-008",
+      "name": "原发性肾上腺皮质功能减退症",
+      "aliases": ["艾迪生病"],
+      "department": "内分泌科",
+      "symptoms": ["乏力", "食欲减退", "体重下降", "低血压", "皮肤色素沉着", "恶心呕吐", "腹痛", "低血糖"],
+      "risk_factors": ["自身免疫", "结核病", "长期糖皮质激素治疗后停药", "肾上腺出血或感染"],
+      "examinations": [
+        {"name": "血皮质醇", "findings": "降低"},
+        {"name": "ACTH兴奋试验", "findings": "反应低下"},
+        {"name": "血ACTH", "findings": "升高"},
+        {"name": "电解质", "findings": "低钠高钾"}
+      ],
+      "treatments": ["糖皮质激素替代", "盐皮质激素替代", "应激时激素加量", "病因治疗"],
+      "distinguishing_features": ["皮肤色素沉着伴乏力低血压", "皮质醇降低ACTH升高", "低钠高钾"],
+      "patient_profile": {
+        "age_range": [20, 60],
+        "gender_bias": "any",
+        "symptom_weights": {"乏力": 0.9, "食欲减退": 0.7, "体重下降": 0.7, "低血压": 0.7, "皮肤色素沉着": 0.9, "恶心呕吐": 0.5, "腹痛": 0.5, "低血糖": 0.5},
+        "history_bias": ["自身免疫", "结核病"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "DERM-001",
+      "name": "带状疱疹",
+      "department": "皮肤科",
+      "symptoms": ["沿神经分布簇集性水疱", "局部灼痛", "针刺样疼痛", "皮疹单侧分布", "发热", "乏力", "触痛"],
+      "risk_factors": ["高龄", "免疫力低下", "水痘病史", "精神压力", "肿瘤或免疫抑制"],
+      "examinations": [
+        {"name": "皮损涂片", "findings": "多核巨细胞"},
+        {"name": "病毒核酸检测", "findings": "水痘-带状疱疹病毒DNA阳性"},
+        {"name": "血清抗体", "findings": "VZV-IgM或IgG阳性"}
+      ],
+      "treatments": ["抗病毒（阿昔洛韦或伐昔洛韦）", "止痛", "营养神经", "局部护理"],
+      "distinguishing_features": ["单侧沿神经分布的水疱和疼痛", "发病前有灼痛", "水痘病史"],
+      "patient_profile": {
+        "age_range": [50, 80],
+        "gender_bias": "any",
+        "symptom_weights": {"沿神经分布簇集性水疱": 1.0, "局部灼痛": 0.9, "针刺样疼痛": 0.8, "皮疹单侧分布": 0.9, "发热": 0.4, "乏力": 0.4, "触痛": 0.6},
+        "history_bias": ["高龄", "水痘病史", "免疫力低下"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "DERM-002",
+      "name": "湿疹",
+      "department": "皮肤科",
+      "symptoms": ["皮肤红斑", "丘疹", "水疱", "渗出", "结痂", "剧烈瘙痒", "皮肤干燥", "慢性期皮肤增厚苔藓化"],
+      "risk_factors": ["过敏体质", "皮肤屏障受损", "干燥环境", "刺激物或过敏原接触", "精神压力"],
+      "examinations": [
+        {"name": "皮肤检查", "findings": "多形性皮损，对称分布"},
+        {"name": "过敏原检测", "findings": "可阳性"},
+        {"name": "真菌镜检", "findings": "阴性，排除真菌感染"}
+      ],
+      "treatments": ["保湿修复", "外用糖皮质激素", "抗组胺药止痒", "避免刺激物"],
+      "distinguishing_features": ["多形性皮损伴剧烈瘙痒", "对称分布反复发作", "真菌镜检阴性"],
+      "patient_profile": {
+        "age_range": [10, 60],
+        "gender_bias": "any",
+        "symptom_weights": {"皮肤红斑": 0.9, "丘疹": 0.8, "水疱": 0.5, "渗出": 0.6, "结痂": 0.6, "剧烈瘙痒": 1.0, "皮肤干燥": 0.6, "慢性期皮肤增厚苔藓化": 0.5},
+        "history_bias": ["过敏体质", "皮肤屏障受损"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "DERM-003",
+      "name": "荨麻疹",
+      "department": "皮肤科",
+      "symptoms": ["风团", "剧烈瘙痒", "皮疹24小时内消退", "皮肤划痕症", "口唇眼睑水肿", "可伴发热"],
+      "risk_factors": ["食物过敏", "药物过敏", "感染", "物理刺激（冷热压迫）", "精神紧张"],
+      "examinations": [
+        {"name": "皮肤检查", "findings": "风团"},
+        {"name": "过敏原检测", "findings": "可阳性"},
+        {"name": "血常规", "findings": "嗜酸性粒细胞可升高"}
+      ],
+      "treatments": ["抗组胺药", "重症用糖皮质激素", "过敏性休克用肾上腺素", "避免诱因"],
+      "distinguishing_features": ["风团24小时内消退不留痕迹", "剧烈瘙痒", "反复发作"],
+      "patient_profile": {
+        "age_range": [10, 50],
+        "gender_bias": "any",
+        "symptom_weights": {"风团": 1.0, "剧烈瘙痒": 0.9, "皮疹24小时内消退": 0.9, "皮肤划痕症": 0.7, "口唇眼睑水肿": 0.5, "可伴发热": 0.3},
+        "history_bias": ["食物过敏", "药物过敏"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "DERM-004",
+      "name": "银屑病",
+      "aliases": ["牛皮癣"],
+      "department": "皮肤科",
+      "symptoms": ["红色斑块", "银白色鳞屑", "薄膜现象", "点状出血", "皮肤瘙痒", "关节肿痛", "指甲点状凹陷"],
+      "risk_factors": ["遗传", "感染（链球菌）", "精神压力", "吸烟饮酒", "药物"],
+      "examinations": [
+        {"name": "皮肤检查", "findings": "典型三联征：鳞屑、薄膜、点状出血"},
+        {"name": "病理活检", "findings": "表皮角化过度伴Munro微脓肿"},
+        {"name": "关节影像", "findings": "关节炎表现"}
+      ],
+      "treatments": ["外用糖皮质激素或维生素D3衍生物", "光疗", "生物制剂", "关节型对症治疗"],
+      "distinguishing_features": ["银白色鳞屑红斑", "薄膜现象和点状出血", "慢性复发性"],
+      "patient_profile": {
+        "age_range": [20, 60],
+        "gender_bias": "any",
+        "symptom_weights": {"红色斑块": 0.9, "银白色鳞屑": 1.0, "薄膜现象": 0.8, "点状出血": 0.7, "皮肤瘙痒": 0.5, "关节肿痛": 0.4, "指甲点状凹陷": 0.5},
+        "history_bias": ["遗传", "精神压力"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "DERM-005",
+      "name": "痤疮",
+      "aliases": ["青春痘"],
+      "department": "皮肤科",
+      "symptoms": ["粉刺（黑头或白头）", "炎性丘疹", "脓疱", "结节囊肿", "皮脂溢出", "好发于面颊额部"],
+      "risk_factors": ["青春期", "雄激素水平升高", "遗传", "高糖高脂饮食", "化妆品堵塞毛孔"],
+      "examinations": [
+        {"name": "皮肤检查", "findings": "非炎症性和炎症性皮损分布"},
+        {"name": "性激素", "findings": "女性多囊卵巢综合征排查"},
+        {"name": "细菌培养", "findings": "必要时阳性"}
+      ],
+      "treatments": ["外用维A酸或过氧化苯甲酰", "口服抗生素", "重症异维A酸", "护肤控油"],
+      "distinguishing_features": ["好发于青春期面部的粉刺丘疹脓疱", "皮脂溢出", "慢性病程"],
+      "patient_profile": {
+        "age_range": [12, 35],
+        "gender_bias": "any",
+        "symptom_weights": {"粉刺（黑头或白头）": 0.9, "炎性丘疹": 0.9, "脓疱": 0.7, "结节囊肿": 0.4, "皮脂溢出": 0.8, "好发于面颊额部": 0.9},
+        "history_bias": ["青春期", "遗传"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "DERM-006",
+      "name": "手足癣",
+      "aliases": ["脚气"],
+      "department": "皮肤科",
+      "symptoms": ["足趾间浸渍糜烂", "水疱", "脱屑", "瘙痒", "皮肤增厚", "异味", "掌跖部红斑"],
+      "risk_factors": ["潮湿环境", "共用鞋袜毛巾", "多汗", "糖尿病", "免疫力低下"],
+      "examinations": [
+        {"name": "真菌镜检", "findings": "菌丝或孢子阳性"},
+        {"name": "真菌培养", "findings": "皮肤癣菌生长"},
+        {"name": "皮损检查", "findings": "趾间浸渍糜烂或水疱"}
+      ],
+      "treatments": ["抗真菌外用（特比萘芬或咪康唑）", "严重者口服抗真菌药", "保持干燥", "消毒鞋袜"],
+      "distinguishing_features": ["趾间浸渍糜烂伴瘙痒", "真菌镜检阳性", "单侧多见"],
+      "patient_profile": {
+        "age_range": [20, 70],
+        "gender_bias": "any",
+        "symptom_weights": {"足趾间浸渍糜烂": 0.9, "水疱": 0.6, "脱屑": 0.8, "瘙痒": 0.9, "皮肤增厚": 0.6, "异味": 0.4, "掌跖部红斑": 0.6},
+        "history_bias": ["潮湿环境", "共用鞋袜毛巾"],
+        "exam_hit_rate": 0.9
+      }
+    },
+    {
+      "id": "DERM-007",
+      "name": "丹毒",
+      "department": "皮肤科",
+      "symptoms": ["局部皮肤红肿热痛", "边界清楚", "发热寒战", "淋巴结肿大", "疼痛明显", "水疱或大疱"],
+      "risk_factors": ["皮肤破损", "足癣", "糖尿病", "淋巴水肿", "免疫力低下"],
+      "examinations": [
+        {"name": "血常规", "findings": "白细胞和中性粒细胞升高"},
+        {"name": "CRP", "findings": "显著升高"},
+        {"name": "血培养", "findings": "链球菌阳性"},
+        {"name": "皮损检查", "findings": "边界清楚的鲜红肿胀斑片"}
+      ],
+      "treatments": ["青霉素类抗生素", "抬高患肢", "局部冷敷", "治疗诱因（足癣等）"],
+      "distinguishing_features": ["边界清楚的鲜红肿胀斑片", "发热寒战等全身症状", "白细胞升高"],
+      "patient_profile": {
+        "age_range": [30, 70],
+        "gender_bias": "any",
+        "symptom_weights": {"局部皮肤红肿热痛": 1.0, "边界清楚": 0.8, "发热寒战": 0.8, "淋巴结肿大": 0.6, "疼痛明显": 0.7, "水疱或大疱": 0.4},
+        "history_bias": ["皮肤破损", "足癣", "糖尿病"],
+        "exam_hit_rate": 0.85
+      }
+    },
+    {
+      "id": "DERM-008",
+      "name": "单纯疱疹",
+      "department": "皮肤科",
+      "symptoms": ["口唇或生殖器簇集性水疱", "局部灼热刺痛", "水疱破溃结痂", "复发史", "发热", "淋巴结肿大"],
+      "risk_factors": ["免疫力低下", "疲劳", "精神压力", "发热后", "日晒"],
+      "examinations": [
+        {"name": "病毒核酸检测", "findings": "HSV-DNA阳性"},
+        {"name": "病毒培养", "findings": "单纯疱疹病毒"},
+        {"name": "Tzanck涂片", "findings": "多核巨细胞"}
+      ],
+      "treatments": ["外用或口服抗病毒（阿昔洛韦）", "止痛", "保持局部清洁"],
+      "distinguishing_features": ["口唇或生殖器反复簇集水疱", "局部灼热刺痛前驱症状", "病程自限常复发"],
+      "patient_profile": {
+        "age_range": [15, 60],
+        "gender_bias": "any",
+        "symptom_weights": {"口唇或生殖器簇集性水疱": 1.0, "局部灼热刺痛": 0.8, "水疱破溃结痂": 0.7, "复发史": 0.8, "发热": 0.3, "淋巴结肿大": 0.4},
+        "history_bias": ["免疫力低下", "疲劳"],
+        "exam_hit_rate": 0.9
+      }
+    }
+  ]
+}
