@@ -39,7 +39,7 @@ def test_registry_provides_consultants() -> None:
     assert "会诊医生" in consultant.name
 
 
-def test_nurse_followup_adds_symptoms() -> None:
+def test_doctor_followup_adds_symptoms() -> None:
     kb = load_knowledge_base()
     generator = PatientGenerator(
         kb,
@@ -57,7 +57,10 @@ def test_nurse_followup_adds_symptoms() -> None:
     )
     context = runtime.run_episode(patient)
     assert context.nurse_questions == 2
-    assert any(entry["state"] == "symptom_question" for entry in context.transcript)
+    question_entries = [
+        entry for entry in context.transcript if entry["state"] == "symptom_question"
+    ]
+    assert question_entries and "医生" in question_entries[0]["agent"]
     assert any(entry["state"] == "symptom_answer" for entry in context.transcript)
     assert len(context.patient.symptoms) >= len(initial_symptoms)
 

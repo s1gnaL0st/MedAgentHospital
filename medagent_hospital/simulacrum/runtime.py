@@ -24,6 +24,7 @@ class HospitalRuntime:
         patient_agent: Agent,
         nurse_agent: Agent,
         doctor_agent: Agent | dict[str, Agent] | DoctorRegistry,
+        guide_agent: Agent | None = None,
         max_steps: int = 20,
         nurse_questions: int = 0,
         consultation: bool = False,
@@ -32,6 +33,7 @@ class HospitalRuntime:
     ) -> None:
         self.patient_agent = patient_agent
         self.nurse_agent = nurse_agent
+        self.guide_agent = guide_agent
         self.doctor_agent = doctor_agent
         self.max_steps = max_steps
         self.nurse_questions = nurse_questions
@@ -66,13 +68,12 @@ class HospitalRuntime:
             HospitalState.FOLLOW_UP,
         }:
             return self.patient_agent.run(context)
-        if state in {
-            HospitalState.TRIAGE,
-            HospitalState.SYMPTOM_QUESTION,
-            HospitalState.EXAMINATION,
-        }:
+        if state == HospitalState.TRIAGE:
+            return (self.guide_agent or self.nurse_agent).run(context)
+        if state == HospitalState.EXAMINATION:
             return self.nurse_agent.run(context)
         if state in {
+            HospitalState.SYMPTOM_QUESTION,
             HospitalState.CONSULTATION,
             HospitalState.DIAGNOSIS,
             HospitalState.CONSULTATION_ROUND,
@@ -91,11 +92,9 @@ class HospitalRuntime:
             HospitalState.FOLLOW_UP,
         }:
             return self.patient_agent.name
-        if state in {
-            HospitalState.TRIAGE,
-            HospitalState.SYMPTOM_QUESTION,
-            HospitalState.EXAMINATION,
-        }:
+        if state == HospitalState.TRIAGE:
+            return (self.guide_agent or self.nurse_agent).name
+        if state == HospitalState.EXAMINATION:
             return self.nurse_agent.name
         index = context.consultation_round if state == HospitalState.CONSULTATION_ROUND else 0
         return self._doctor_for(context, index).name

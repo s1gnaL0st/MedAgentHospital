@@ -60,6 +60,8 @@ class DoctorAgent(Agent):
         self.history_weight = history_weight
 
     def run(self, context: ConsultationContext) -> Action:
+        if context.current_state == HospitalState.SYMPTOM_QUESTION:
+            return self._ask_symptom(context)
         if context.current_state == HospitalState.CONSULTATION:
             return self._select_exams(context)
         if context.current_state == HospitalState.DIAGNOSIS:
@@ -71,6 +73,31 @@ class DoctorAgent(Agent):
         if context.current_state == HospitalState.TREATMENT:
             return self._prescribe(context)
         return Action("idle", {})
+
+    def _ask_symptom(self, context: ConsultationContext) -> Action:
+        department = context.department
+        diseases = (
+            self.kb.by_department(department)
+            if department
+            else self.kb.diseases
+        )
+        observed = set(context.patient.symptoms)
+        asked = set(context.asked_symptoms)
+        candidates: list[tuple[float, str]] = []
+        for disease in diseases:
+            if not disease.patient_profile:
+                continue
+            for symptom, weight in disease.patient_profile.symptom_weights.items():
+                if symptom not in observed and symptom not in asked:
+                    candidates.append((weight, symptom))
+        if not candidates:
+            return Action("no_more_questions", {})
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        symptom = candidates[0][1]
+        return Action(
+            "ask_symptom",
+            {"symptom": symptom, "question": f"请问您是否有{symptom}？"},
+        )
 
     def _consult_opinion(self, context: ConsultationContext) -> Action:
         diagnosis = self._diagnose(context)

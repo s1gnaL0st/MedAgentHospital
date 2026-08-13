@@ -14,10 +14,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from medagent_hospital.agents.doctor import DoctorAgent
+from medagent_hospital.agents.guide import GuideAgent
 from medagent_hospital.agents.nurse import NurseAgent
 from medagent_hospital.agents.patient import PatientAgent
 from medagent_hospital.agents.registry import DoctorRegistry
 from medagent_hospital.knowledge import load_knowledge_base
+from medagent_hospital.memory.case_base import MedicalCaseBase
+from medagent_hospital.memory.experience_base import ExperienceBase
 from medagent_hospital.simulacrum.evolution import (
     EvolutionConfig,
     EvolutionTrainer,
@@ -34,6 +37,8 @@ class DemoState:
         self.kb = load_knowledge_base()
         self.latest_evolution: dict | None = None
         self.evolved_registry = None
+        self.guide_case_base = MedicalCaseBase()
+        self.guide_experience_base = ExperienceBase()
         self.lock = threading.Lock()
 
 
@@ -96,6 +101,12 @@ def _run_episode(body: dict) -> dict:
         registry = STATE.evolved_registry
     reasoner = str(body.get("reasoner", "rule")).lower()
     force_consultation = bool(body.get("force_consultation", False))
+    guide = GuideAgent(
+        kb=STATE.kb,
+        reasoner=reasoner,
+        case_base=STATE.guide_case_base,
+        experience_base=STATE.guide_experience_base,
+    )
     doctor_registry = DoctorRegistry(
         STATE.kb, reasoner=reasoner, doctors_per_department=3
     )
@@ -109,6 +120,7 @@ def _run_episode(body: dict) -> dict:
     runtime = HospitalRuntime(
         patient_agent=PatientAgent(),
         nurse_agent=NurseAgent(kb=STATE.kb),
+        guide_agent=guide,
         doctor_agent=doctor_registry,
         nurse_questions=2,
         consultation=True,
@@ -116,6 +128,7 @@ def _run_episode(body: dict) -> dict:
         max_consultants=2,
     )
     context = runtime.run_episode(patient)
+    guide_update = guide.update_memory(context, patient)
     return {
         "patient": {
             "id": patient.patient_id,
@@ -148,6 +161,11 @@ def _run_episode(body: dict) -> dict:
         "correct": context.diagnosis_id == patient.ground_truth_disease_id,
         "memory_used": use_memory and registry is not None,
         "reasoner": reasoner,
+        "guide": {
+            "cases": len(guide.case_base),
+            "rules": len(guide.experience_base),
+            "last_update": guide_update,
+        },
         "nurse_questions": context.nurse_questions,
         "consultation_triggered": context.consultation_triggered,
         "opinions": context.opinions,

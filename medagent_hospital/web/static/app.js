@@ -85,80 +85,502 @@ const canvas = $("hospitalCanvas");
 const ctx = canvas.getContext("2d");
 
 const stations = {
-  disease_onset: { x: 58, y: 290 },
-  triage: { x: 168, y: 150 },
-  registration: { x: 168, y: 396 },
-  symptom_question: { x: 300, y: 270 },
-  symptom_answer: { x: 300, y: 270 },
-  consultation: { x: 460, y: 270 },
-  examination: { x: 668, y: 150 },
-  diagnosis: { x: 460, y: 270 },
-  consultation_round: { x: 460, y: 270 },
-  consultation_summary: { x: 460, y: 270 },
-  treatment: { x: 668, y: 396 },
-  follow_up: { x: 902, y: 270 },
-  end: { x: 902, y: 270 },
+  disease_onset: { x: 45, y: 280 },
+  triage: { x: 240, y: 128 },
+  registration: { x: 240, y: 438 },
+  symptom_question: { x: 720, y: 128 },
+  symptom_answer: { x: 720, y: 128 },
+  consultation: { x: 720, y: 128 },
+  examination: { x: 480, y: 438 },
+  diagnosis: { x: 720, y: 128 },
+  consultation_round: { x: 720, y: 128 },
+  consultation_summary: { x: 720, y: 128 },
+  treatment: { x: 720, y: 438 },
+  follow_up: { x: 915, y: 280 },
+  end: { x: 915, y: 280 },
 };
 
 const rooms = [
-  { name: "入口", x: 30, y: 250, w: 70, h: 80 },
-  { name: "分诊台", x: 128, y: 110, w: 90, h: 80 },
-  { name: "挂号处", x: 128, y: 356, w: 90, h: 80 },
-  { name: "候诊区", x: 258, y: 230, w: 110, h: 80 },
-  { name: "诊室", x: 400, y: 230, w: 120, h: 80 },
-  { name: "检查室", x: 566, y: 110, w: 90, h: 80 },
-  { name: "药房", x: 566, y: 356, w: 90, h: 80 },
-  { name: "出口", x: 872, y: 250, w: 70, h: 80 },
+  { name: "分诊台", x: 120, y: 80, w: 240, h: 90 },
+  { name: "候诊区", x: 360, y: 80, w: 240, h: 90 },
+  { name: "诊室", x: 600, y: 80, w: 240, h: 90 },
+  { name: "挂号处", x: 120, y: 390, w: 240, h: 90 },
+  { name: "检查室", x: 360, y: 390, w: 240, h: 90 },
+  { name: "药房", x: 600, y: 390, w: 240, h: 90 },
 ];
+
+const woodTiles = ["#a97c4f", "#9b7047", "#b3875a", "#8f6540", "#a2754c"];
+
+function pickWood(x, y) {
+  return woodTiles[(x * 7 + y * 13) % woodTiles.length];
+}
 
 function drawHospital() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "#dfe4ea";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = "rgba(255,255,255,0.55)";
-  ctx.lineWidth = 1;
-  for (let x = 0; x < canvas.width; x += 24) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-  }
-  for (let y = 0; y < canvas.height; y += 24) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-  }
 
-  rooms.forEach((room) => {
-    ctx.fillStyle = "#f8fafc";
-    ctx.fillRect(room.x, room.y, room.w, room.h);
-    ctx.strokeStyle = "#94a3b8";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(room.x, room.y, room.w, room.h);
-    ctx.fillStyle = "#475569";
-    ctx.font = "13px 'Microsoft YaHei', sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(room.name, room.x + room.w / 2, room.y + room.h / 2 + 5);
-    ctx.fillStyle = "#cbd5e1";
-    ctx.fillRect(room.x + room.w / 2 - 8, room.y + room.h - 6, 16, 6);
+  // grass outside
+  ctx.fillStyle = "#4c9a48";
+  ctx.fillRect(0, 0, canvas.width, 40);
+  ctx.fillStyle = "#4c9a48";
+  ctx.fillRect(0, 40, canvas.width, canvas.height - 40);
+  ctx.fillStyle = "#3d843d";
+  for (let y = 8; y < 528; y += 18) {
+    for (let x = 8; x < 950; x += 22) {
+      if ((x + y) % 5 === 0) ctx.fillRect(x, y, 4, 4);
+    }
+  }
+  const flowers = [[18, 12], [52, 26], [86, 8], [130, 20], [836, 12], [900, 24], [930, 16], [26, 470], [920, 500]];
+  flowers.forEach(([fx, fy]) => {
+    ctx.fillStyle = fx % 2 ? "#fde047" : "#ffffff";
+    ctx.fillRect(fx, fy, 5, 5);
+    ctx.fillStyle = "#f97316";
+    ctx.fillRect(fx + 1, fy + 1, 3, 3);
   });
 
-  ctx.fillStyle = "#94a3b8";
+  // trees outside
+  [[34, 28], [926, 28], [34, 512], [926, 512]].forEach(([tx, ty]) => {
+    ctx.fillStyle = "#5b3a29";
+    ctx.fillRect(tx - 3, ty - 8, 6, 12);
+    ctx.fillStyle = "#2f7d32";
+    ctx.beginPath();
+    ctx.arc(tx, ty - 14, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#3f9b42";
+    ctx.beginPath();
+    ctx.arc(tx - 6, ty - 18, 8, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // 3D walls with openings at the corridor ends
+  function wall(x, y, w, h) {
+    ctx.fillStyle = "#4a2f1d";
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = "#8a6240";
+    ctx.fillRect(x, y, w, 5);
+    ctx.fillStyle = "#6b4a2f";
+    ctx.fillRect(x, y + 5, w, h - 5);
+    ctx.strokeStyle = "rgba(42,25,12,0.35)";
+    ctx.lineWidth = 1;
+    for (let yy = y + 12; yy < y + h; yy += 12) {
+      ctx.beginPath();
+      ctx.moveTo(x, yy);
+      ctx.lineTo(x + w, yy);
+      ctx.stroke();
+    }
+    for (let xx = x + 12; xx < x + w; xx += 12) {
+      ctx.beginPath();
+      ctx.moveTo(xx, y + 5);
+      ctx.lineTo(xx, y + h);
+      ctx.stroke();
+    }
+  }
+  wall(70, 56, 820, 18);
+  wall(70, 486, 820, 18);
+  wall(70, 56, 18, 134);
+  wall(70, 370, 18, 130);
+  wall(872, 56, 18, 134);
+  wall(872, 370, 18, 130);
+
+  // interior wood floor
+  for (let y = 74; y < 486; y += 12) {
+    for (let x = 88; x < 872; x += 12) {
+      ctx.fillStyle = pickWood(x, y);
+      ctx.fillRect(x, y, 12, 12);
+    }
+  }
+  ctx.strokeStyle = "rgba(63,40,25,0.35)";
+  ctx.lineWidth = 1;
+  for (let y = 74; y <= 486; y += 12) {
+    ctx.beginPath();
+    ctx.moveTo(88, y);
+    ctx.lineTo(872, y);
+    ctx.stroke();
+  }
+
+  // corridor stripes
+  const corridorColors = ["#5a3a22", "#6b4527"];
+  for (let y = 190; y < 370; y += 24) {
+    ctx.fillStyle = corridorColors[Math.floor(y / 24) % 2];
+    ctx.fillRect(88, y, 784, 24);
+  }
+  ctx.strokeStyle = "rgba(42,25,12,0.45)";
+  ctx.lineWidth = 1;
+  for (let x = 88; x < 872; x += 48) {
+    ctx.beginPath();
+    ctx.moveTo(x, 190);
+    ctx.lineTo(x, 370);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#3a2415";
+  ctx.fillRect(88, 186, 784, 4);
+  ctx.fillRect(88, 368, 784, 4);
+
+  // sign
+  ctx.fillStyle = "#3f2819";
+  ctx.fillRect(392, 10, 176, 34);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(400, 16, 160, 14);
+  drawCross(430, 23, 10, "#dc2626");
+  ctx.fillStyle = "#1f2937";
+  ctx.font = "12px 'Microsoft YaHei', sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("医院", 476, 26);
+
+  const wallColors = ["#0e7490", "#b45309", "#7c3aed", "#0e7490", "#b45309", "#7c3aed"];
+  rooms.forEach((room, index) => {
+    ctx.fillStyle = "#e2cba4";
+    ctx.fillRect(room.x, room.y, room.w, room.h);
+    ctx.strokeStyle = "#5b3a29";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(room.x, room.y, room.w, room.h);
+    ctx.fillStyle = wallColors[index % wallColors.length];
+    ctx.fillRect(room.x, room.y, room.w, 6);
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    for (let x = room.x + 10; x < room.x + room.w - 6; x += 16) {
+      ctx.fillRect(x, room.y + 1, 4, 4);
+    }
+    ctx.strokeStyle = "rgba(91,58,41,0.30)";
+    ctx.lineWidth = 1;
+    for (let y = room.y + 10; y < room.y + room.h; y += 8) {
+      ctx.beginPath();
+      ctx.moveTo(room.x + 2, y);
+      ctx.lineTo(room.x + room.w - 2, y);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#8b5a2b";
+    ctx.fillRect(room.x + room.w / 2 - 11, room.y + room.h - 10, 22, 8);
+    ctx.fillStyle = "#5b3a29";
+    ctx.fillRect(room.x + room.w / 2 + 2, room.y + room.h - 8, 3, 4);
+  });
+
+  // 分诊台 / 挂号处
+  drawDesk(128, 126, 80, 12);
+  drawMonitor(168, 126);
+  drawStool(140, 146);
+  drawStool(200, 146);
+  drawDesk(128, 430, 80, 12);
+  drawMonitor(168, 430);
+  drawStool(140, 450);
+  drawStool(200, 450);
+
+  // 诊室
+  drawBed(760, 86, 60, 18);
+  drawDesk(616, 140, 64, 10);
+  drawMonitor(648, 140);
+  drawStool(648, 154);
+
+  // 检查室
+  drawBed(520, 430, 60, 18);
+  drawDesk(406, 452, 60, 8);
+  drawMonitor(436, 448);
+  drawStool(436, 466);
+
+  // 药房
+  drawShelves(616, 394, 140);
+  drawDesk(636, 442, 48, 10);
+  drawMonitor(660, 442);
+  drawStool(676, 458);
+
+  // 候诊区
+  drawRug(390, 100, 180, 50);
+  [[410, 110], [436, 110], [462, 110], [410, 140], [436, 140], [462, 140]].forEach(([sx, sy]) => drawStool(sx, sy));
+
+  // decor: flower pots, medical kits, TV
+  drawFlowerPot(306, 148);
+  drawMedicalKit(306, 120);
+  drawFlowerPot(306, 458);
+  drawMedicalKit(306, 430);
+  drawTV(800, 404);
+  drawFlowerPot(760, 160);
+  drawMedicalKit(546, 404);
+  drawFlowerPot(570, 470);
+  drawFlowerPot(776, 404);
+  drawMedicalKit(776, 470);
+  drawTV(580, 96);
+
+  // banners and torches
+  drawBanner(84, 280);
+  drawBanner(872, 280);
+  const torchSpots = [[84, 64], [300, 64], [600, 64], [872, 64], [84, 500], [300, 500], [600, 500], [872, 500]];
+  torchSpots.forEach(([tx, ty]) => drawTorch(tx, ty));
+
+  rooms.forEach((room) => {
+    ctx.fillStyle = "#2f2318";
+    ctx.font = "12px 'Microsoft YaHei', sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(room.name, room.x + room.w / 2, room.y + 18);
+  });
+
+  ctx.fillStyle = "#f7ecd8";
   ctx.font = "11px 'Microsoft YaHei', sans-serif";
-  ctx.fillText("MedAgent-Hospital · 仿真医院", 478, 24);
+  ctx.fillText("MedAgent-Hospital · 仿真医院", 478, 528);
+}
+
+function drawDesk(x, y, w, h) {
+  ctx.fillStyle = "rgba(20,12,6,0.28)";
+  ctx.fillRect(x + 3, y + 3, w, h);
+  ctx.fillStyle = "#7c5a3a";
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = "#b58a58";
+  ctx.fillRect(x, y, w, 4);
+  ctx.fillStyle = "#a97c4f";
+  ctx.fillRect(x, y + 4, w, h - 6);
+  ctx.fillStyle = "#5a3c24";
+  ctx.fillRect(x, y + h - 3, w, 3);
+}
+
+function drawDeskVertical(x, y, w, h) {
+  ctx.fillStyle = "rgba(20,12,6,0.28)";
+  ctx.fillRect(x + 3, y + 3, w, h);
+  ctx.fillStyle = "#7c5a3a";
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = "#b58a58";
+  ctx.fillRect(x, y, w, 4);
+  ctx.fillStyle = "#a97c4f";
+  ctx.fillRect(x, y + 4, w, h - 4);
+  ctx.fillStyle = "#5a3c24";
+  ctx.fillRect(x, y + h - 3, w, 3);
+}
+
+function drawMonitor(x, y) {
+  ctx.fillStyle = "rgba(20,12,6,0.25)";
+  ctx.fillRect(x - 7, y - 6, 15, 12);
+  ctx.fillStyle = "#334155";
+  ctx.fillRect(x - 7, y - 9, 14, 10);
+  ctx.fillStyle = "#1f2937";
+  ctx.fillRect(x - 6, y - 8, 12, 8);
+  ctx.fillStyle = "#38bdf8";
+  ctx.fillRect(x - 5, y - 7, 10, 6);
+  ctx.fillStyle = "rgba(255,255,255,0.28)";
+  ctx.fillRect(x - 5, y - 7, 10, 2);
+  ctx.fillStyle = "#334155";
+  ctx.fillRect(x - 1, y, 2, 3);
+  ctx.fillRect(x - 4, y + 3, 8, 2);
+  ctx.fillStyle = "#1f2937";
+  ctx.fillRect(x - 4, y + 5, 8, 2);
+}
+
+function drawBed(x, y, w, h) {
+  ctx.fillStyle = "rgba(20,12,6,0.28)";
+  ctx.fillRect(x + 3, y + 3, w, h);
+  ctx.fillStyle = "#6b4527";
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = "#8b5a2b";
+  ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x + 3, y + 3, 20, h - 6);
+  ctx.fillStyle = "#0e7490";
+  ctx.fillRect(x + 25, y + 3, w - 28, h - 6);
+  ctx.fillStyle = "rgba(255,255,255,0.25)";
+  ctx.fillRect(x + 25, y + 3, w - 28, 3);
+  ctx.fillStyle = "#3f2819";
+  ctx.fillRect(x + 3, y + h - 2, 4, 4);
+  ctx.fillRect(x + 14, y + h - 2, 4, 4);
+  ctx.fillRect(x + w - 7, y + h - 2, 4, 4);
+  ctx.fillStyle = "rgba(20,12,6,0.25)";
+  ctx.fillRect(x + 3, y + h - 5, 4, 3);
+  ctx.fillRect(x + 14, y + h - 5, 4, 3);
+  ctx.fillRect(x + w - 7, y + h - 5, 4, 3);
+}
+
+function drawBedV(x, y, w, h) {
+  ctx.fillStyle = "rgba(20,12,6,0.28)";
+  ctx.fillRect(x + 3, y + 3, w, h);
+  ctx.fillStyle = "#6b4527";
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = "#8b5a2b";
+  ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x + 3, y + 3, w - 6, 12);
+  ctx.fillStyle = "#0e7490";
+  ctx.fillRect(x + 3, y + 15, w - 6, h - 18);
+  ctx.fillStyle = "rgba(255,255,255,0.25)";
+  ctx.fillRect(x + 3, y + 15, w - 6, 3);
+}
+
+function drawShelves(x, y, w) {
+  ctx.fillStyle = "rgba(20,12,6,0.28)";
+  ctx.fillRect(x + 10, y + 17, w - 16, 14);
+  ctx.fillStyle = "#7c5a3a";
+  ctx.fillRect(x + 8, y + 14, w - 16, 14);
+  ctx.fillStyle = "#a97c4f";
+  ctx.fillRect(x + 8, y + 14, w - 16, 3);
+  const itemColors = ["#e11d48", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7", "#f97316"];
+  for (let i = 0; i < 6; i++) {
+    ctx.fillStyle = itemColors[i];
+    ctx.fillRect(x + 14 + i * 16, y + 18, 8, 8);
+    ctx.fillStyle = "rgba(255,255,255,0.30)";
+    ctx.fillRect(x + 14 + i * 16, y + 18, 8, 2);
+  }
+}
+
+function drawStool(x, y) {
+  ctx.fillStyle = "rgba(20,12,6,0.25)";
+  ctx.fillRect(x - 2, y + 2, 8, 8);
+  ctx.fillStyle = "#6d28d9";
+  ctx.fillRect(x - 4, y, 8, 8);
+  ctx.fillStyle = "#8b5cf6";
+  ctx.fillRect(x - 4, y, 8, 4);
+  ctx.fillStyle = "#4c1d95";
+  ctx.fillRect(x - 4, y + 6, 8, 2);
+}
+
+function drawFlowerPot(x, y) {
+  ctx.fillStyle = "rgba(20,12,6,0.25)";
+  ctx.fillRect(x - 4, y + 2, 10, 8);
+  ctx.fillStyle = "#78350f";
+  ctx.fillRect(x - 5, y, 10, 8);
+  ctx.fillStyle = "#b45309";
+  ctx.fillRect(x - 5, y, 10, 4);
+  ctx.fillStyle = "#92400e";
+  ctx.fillRect(x + 2, y + 4, 3, 4);
+  ctx.fillStyle = "#16a34a";
+  ctx.fillRect(x - 1, y - 6, 2, 7);
+  ctx.fillRect(x - 6, y - 3, 3, 5);
+  ctx.fillRect(x + 3, y - 3, 3, 5);
+  ctx.fillStyle = "#f43f5e";
+  ctx.fillRect(x - 1, y - 8, 3, 3);
+}
+
+function drawMedicalKit(x, y) {
+  ctx.fillStyle = "rgba(20,12,6,0.25)";
+  ctx.fillRect(x - 6, y + 2, 16, 12);
+  ctx.fillStyle = "#e8eef2";
+  ctx.fillRect(x - 8, y, 16, 12);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x - 8, y, 16, 4);
+  ctx.strokeStyle = "#475569";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x - 8, y, 16, 12);
+  drawCross(x, y + 6, 7, "#dc2626");
+}
+
+function drawTV(x, y) {
+  ctx.fillStyle = "rgba(20,12,6,0.25)";
+  ctx.fillRect(x - 8, y + 2, 20, 14);
+  ctx.fillStyle = "#1f2937";
+  ctx.fillRect(x - 10, y, 20, 14);
+  ctx.fillStyle = "#38bdf8";
+  ctx.fillRect(x - 8, y + 2, 16, 9);
+  ctx.fillStyle = "rgba(255,255,255,0.30)";
+  ctx.fillRect(x - 8, y + 2, 16, 2);
+  ctx.fillStyle = "#0f172a";
+  ctx.fillRect(x - 1, y + 14, 2, 5);
+  ctx.fillRect(x - 7, y + 19, 16, 3);
+  ctx.fillStyle = "#334155";
+  ctx.fillRect(x - 7, y + 22, 16, 2);
+}
+
+function drawBench(x, y, w) {
+  ctx.fillStyle = "rgba(20,12,6,0.25)";
+  ctx.fillRect(x + 2, y + 3, w, 10);
+  ctx.fillStyle = "#78350f";
+  ctx.fillRect(x, y, w, 10);
+  ctx.fillStyle = "#b45309";
+  ctx.fillRect(x, y, w, 4);
+  ctx.fillStyle = "#451a03";
+  ctx.fillRect(x, y + 10, w, 3);
+  ctx.fillRect(x + 8, y + 13, 4, 4);
+  ctx.fillRect(x + w - 12, y + 13, 4, 4);
+}
+
+function drawRug(x, y, w, h) {
+  ctx.fillStyle = "rgba(20,12,6,0.20)";
+  ctx.fillRect(x + 2, y + 2, w, h);
+  ctx.fillStyle = "#0f766e";
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = "#14b8a6";
+  ctx.fillRect(x + 6, y + 6, w - 12, h - 12);
+  ctx.strokeStyle = "#0b4f4a";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 3, y + 3, w - 6, h - 6);
+  ctx.strokeStyle = "rgba(255,255,255,0.15)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 10, y + 10, w - 20, h - 20);
+}
+
+function drawTorch(x, y) {
+  ctx.fillStyle = "rgba(255,180,60,0.18)";
+  ctx.fillRect(x - 12, y - 12, 24, 24);
+  ctx.fillStyle = "rgba(255,200,80,0.30)";
+  ctx.fillRect(x - 8, y - 8, 16, 16);
+  ctx.fillStyle = "#6b4226";
+  ctx.fillRect(x - 2, y - 2, 4, 10);
+  ctx.fillStyle = "#f97316";
+  ctx.fillRect(x - 3, y - 7, 6, 6);
+  ctx.fillStyle = "#fde047";
+  ctx.fillRect(x - 1, y - 5, 2, 3);
+}
+
+function drawBanner(x, y) {
+  ctx.fillStyle = "#3f2819";
+  ctx.fillRect(x - 1, y, 3, 14);
+  ctx.fillStyle = "#dc2626";
+  ctx.fillRect(x + 2, y + 2, 10, 8);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x + 3, y + 4, 3, 3);
+}
+
+function drawCross(cx, cy, size, color) {
+  const thickness = Math.max(2, Math.round(size / 3));
+  ctx.fillStyle = color;
+  ctx.fillRect(cx - size / 2, cy - thickness / 2, size, thickness);
+  ctx.fillRect(cx - thickness / 2, cy - size / 2, thickness, size);
 }
 
 function drawPerson(x, y, opts) {
   const px = Math.round(x);
   const py = Math.round(y);
-  ctx.fillStyle = "rgba(15, 23, 42, 0.18)";
-  ctx.fillRect(px - 8, py - 3, 16, 5);
-  ctx.fillStyle = "#2f3542";
-  ctx.fillRect(px - 6, py - 12, 5, 12);
-  ctx.fillRect(px + 1, py - 12, 5, 12);
+  ctx.fillStyle = "rgba(15, 23, 42, 0.22)";
+  ctx.beginPath();
+  ctx.ellipse(px, py - 1, 13, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.fillStyle = opts.body;
-  ctx.fillRect(px - 8, py - 24, 16, 13);
+  ctx.beginPath();
+  ctx.ellipse(px, py - 12, 12, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.fillStyle = opts.trim || opts.body;
-  ctx.fillRect(px - 8, py - 24, 16, 4);
-  ctx.fillStyle = "#f2c9a0";
-  ctx.fillRect(px - 5, py - 32, 10, 9);
+  ctx.beginPath();
+  ctx.ellipse(px, py - 13, 9, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.fillStyle = opts.hair;
-  ctx.fillRect(px - 5, py - 32, 10, 4);
+  ctx.beginPath();
+  ctx.arc(px, py - 27, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#f5cba7";
+  ctx.beginPath();
+  ctx.arc(px, py - 28, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#1f2937";
+  ctx.fillRect(px - 4, py - 29, 2, 3);
+  ctx.fillRect(px + 2, py - 29, 2, 3);
+
+  if (opts.role === "nurse") {
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(px, py - 36, 7, 0, Math.PI * 2);
+    ctx.fill();
+    drawCross(px, py - 36, 6, "#dc2626");
+  } else if (opts.role === "guide") {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(px - 4, py - 18, 7, 9);
+    ctx.strokeStyle = "#334155";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px - 4, py - 18, 7, 9);
+    ctx.fillStyle = "#334155";
+    ctx.fillRect(px - 3, py - 15, 5, 1);
+    ctx.fillRect(px - 3, py - 12, 5, 1);
+  } else if (opts.role === "doctor") {
+    ctx.fillStyle = "#0e7490";
+    ctx.fillRect(px + 2, py - 14, 3, 3);
+    ctx.strokeStyle = "#0f172a";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(px, py - 27, 10, -1.2, 1.2);
+    ctx.stroke();
+  }
 }
 
 function drawBubble(x, y, text) {
@@ -197,8 +619,8 @@ const stepLabels = {
 function labelFor(entry) {
   const stateName = entry.state;
   const payload = entry.payload || {};
-  if (stateName === "triage") return `分诊 · ${payload.department || ""}`;
-  if (stateName === "symptom_question") return `护士追问 · ${payload.question || ""}`;
+  if (stateName === "triage") return `导医分诊 · ${payload.department || ""}`;
+  if (stateName === "symptom_question") return `医生追问 · ${payload.question || ""}`;
   if (stateName === "symptom_answer") return `病人回答 · ${payload.text || ""}`;
   if (stateName === "consultation") return "问诊 · 开检查";
   if (stateName === "diagnosis") return `诊断 · ${payload.disease_name || ""}`;
@@ -209,31 +631,43 @@ function labelFor(entry) {
 }
 
 function activeRoles(entry) {
-  if (entry.state === "triage" || entry.state === "registration" || entry.state === "examination") {
+  if (entry.state === "triage") {
+    return ["patient", "guide"];
+  }
+  if (
+    entry.state === "registration" ||
+    entry.state === "examination" ||
+    entry.state === "treatment"
+  ) {
     return ["patient", "nurse"];
   }
-  if (entry.state === "consultation" || entry.state === "diagnosis" || entry.state === "consultation_round" || entry.state === "consultation_summary") {
+  if (entry.state === "symptom_question" || entry.state === "symptom_answer" || entry.state === "consultation" || entry.state === "diagnosis" || entry.state === "consultation_round" || entry.state === "consultation_summary") {
     return ["patient", "doctor"];
   }
   return ["patient"];
 }
 
 const roleMeta = {
-  patient: { body: "#0e7490", hair: "#3f3f46" },
-  nurse: { body: "#e2e8f0", hair: "#7c3aed", trim: "#c084fc" },
-  doctor: { body: "#f8fafc", hair: "#475569", trim: "#38bdf8" },
+  patient: { role: "patient", body: "#0e7490", hair: "#3f3f46", pants: "#475569" },
+  nurse: { role: "nurse", body: "#e8f0f5", hair: "#7c3aed", trim: "#f472b6", pants: "#5b6b7b" },
+  doctor: { role: "doctor", body: "#f8fafc", hair: "#475569", trim: "#38bdf8", pants: "#1f2937" },
+  guide: { role: "guide", body: "#fbbf24", hair: "#1f2937", trim: "#f59e0b", pants: "#78350f" },
 };
+
+let currentAnimation = null;
 
 function animateEpisode(result, speed) {
   const steps = result.transcript || [];
   $("eventLog").innerHTML = "";
   let patientPos = { ...stations.disease_onset };
   let stepIndex = 0;
-  let active = true;
+  const token = { active: true };
+  currentAnimation = token;
 
   function playStep() {
-    if (!active) return;
+    if (!token.active) return;
     if (stepIndex >= steps.length) {
+      if (currentAnimation === token) currentAnimation = null;
       showResult(result);
       return;
     }
@@ -242,7 +676,11 @@ function animateEpisode(result, speed) {
     const roles = activeRoles(entry);
     const text = labelFor(entry);
     const li = document.createElement("li");
-    li.className = entry.agent.includes("医生") ? "doctor" : entry.agent.includes("护士") ? "nurse" : "patient";
+    li.className = entry.agent.includes("医生")
+      ? "doctor"
+      : entry.agent.includes("护士") || entry.agent.includes("导医")
+        ? "nurse"
+        : "patient";
     li.textContent = text;
     $("eventLog").appendChild(li);
     $("eventLog").scrollTop = $("eventLog").scrollHeight;
@@ -252,6 +690,7 @@ function animateEpisode(result, speed) {
     const t0 = performance.now();
 
     function frame(now) {
+      if (!token.active) return;
       const t = Math.min(1, (now - t0) / duration);
       const eased = t < 1 ? t * t * (3 - 2 * t) : 1;
       patientPos.x = start.x + (target.x - start.x) * eased;
@@ -259,6 +698,7 @@ function animateEpisode(result, speed) {
       drawHospital();
       if (roles.includes("patient")) drawPerson(patientPos.x, patientPos.y, roleMeta.patient);
       if (roles.includes("nurse")) drawPerson(target.x, target.y - 30, roleMeta.nurse);
+      if (roles.includes("guide")) drawPerson(target.x, target.y - 30, roleMeta.guide);
       if (roles.includes("doctor")) drawPerson(target.x, target.y - 30, roleMeta.doctor);
       if (entry.state === "consultation_round") drawPerson(target.x + 26, target.y - 28, roleMeta.doctor);
       if (t < 1) {
@@ -267,6 +707,7 @@ function animateEpisode(result, speed) {
         drawHospital();
         if (roles.includes("patient")) drawPerson(patientPos.x, patientPos.y, roleMeta.patient);
         if (roles.includes("nurse")) drawPerson(target.x, target.y - 30, roleMeta.nurse);
+        if (roles.includes("guide")) drawPerson(target.x, target.y - 30, roleMeta.guide);
         if (roles.includes("doctor")) drawPerson(target.x, target.y - 30, roleMeta.doctor);
         if (entry.state === "consultation_round") drawPerson(target.x + 26, target.y - 28, roleMeta.doctor);
         drawBubble(target.x, target.y, text);
@@ -305,6 +746,7 @@ function showResult(result) {
   detail.innerHTML = `
     <h3>检查结果</h3><ul>${exams || "<li>未开检查</li>"}</ul>
     <h3>治疗方案</h3><ul>${treatments || "<li>无</li>"}</ul>
+    <h3>导医记忆</h3><ul><li>案例 ${result.guide?.cases ?? 0}</li><li>规则 ${result.guide?.rules ?? 0}</li></ul>
     ${result.consultation_triggered ? `<h3>会诊意见</h3><ul>${(result.opinions || []).map((o) => `<li>${escapeHtml(o.doctor)}：${escapeHtml(o.disease_name)}（权重 ${o.weight}）</li>`).join("")}</ul>` : ""}`;
 
   const chips = $("memoryChips");
@@ -351,6 +793,10 @@ $("runBtn").addEventListener("click", async () => {
   $("memoryChips").innerHTML = "";
   $("memoryChips").classList.add("empty");
   $("memoryChips").textContent = "无";
+  if (currentAnimation) {
+    currentAnimation.active = false;
+    currentAnimation = null;
+  }
   animateEpisode(result, speed);
   $("runBtn").disabled = false;
 });
