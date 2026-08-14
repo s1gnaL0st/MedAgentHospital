@@ -39,6 +39,7 @@ class DoctorAgent(Agent):
         top_k_rules: int = 4,
         case_weight: float = 1.0,
         focus: str = "balanced",
+        deliberation_weight: float = 0.15,
         symptom_weight: float = 1.0,
         exam_weight: float = 1.0,
         history_weight: float = 1.0,
@@ -55,6 +56,7 @@ class DoctorAgent(Agent):
         self.top_k_rules = top_k_rules
         self.case_weight = case_weight
         self.focus = focus
+        self.deliberation_weight = deliberation_weight
         self.symptom_weight = symptom_weight
         self.exam_weight = exam_weight
         self.history_weight = history_weight
@@ -100,16 +102,28 @@ class DoctorAgent(Agent):
         )
 
     def _consult_opinion(self, context: ConsultationContext) -> Action:
-        diagnosis = self._diagnose(context)
-        scores = diagnosis.payload.get("scores") or {}
+        diagnosis = (
+            self._diagnose(context)
+            if self.reasoner == "llm"
+            else self._diagnose_with_deliberation(context)
+        )
+        payload = diagnosis.payload
+        scores = payload.get("scores") or {}
         weight = max(float(value) for value in scores.values()) if scores else 1.0
+        agrees_with = [
+            item.get("doctor", "")
+            for item in context.opinions
+            if item.get("disease_id") == payload.get("disease_id")
+        ]
         return Action(
             "opinion",
             {
-                "disease_id": diagnosis.payload.get("disease_id", ""),
-                "disease_name": diagnosis.payload.get("disease_name", ""),
-                "reasoning": diagnosis.payload.get("reasoning", ""),
+                "disease_id": payload.get("disease_id", ""),
+                "disease_name": payload.get("disease_name", ""),
+                "reasoning": payload.get("reasoning", ""),
                 "weight": weight,
+                "considers": len(context.opinions),
+                "agrees_with": agrees_with,
             },
         )
 
@@ -217,11 +231,7 @@ class DoctorAgent(Agent):
         return self._diagnose_rule(context)
 
     def _diagnose_rule(self, context: ConsultationContext) -> Action:
-        candidates = self._candidate_pool(context)
-        scored = self._score_candidates(
-            context.patient, candidates, exam_results=context.exam_results
-        )
-        scored = self._apply_memory(context, scored)
+        scored = self._rank_candidates(context)
         if not scored:
             return Action(
                 "diagnose",
@@ -234,6 +244,48 @@ class DoctorAgent(Agent):
                 "disease_id": best.id,
                 "disease_name": best.name,
                 "reasoning": self._build_reasoning(context, scored),
+                "scores": {disease.id: round(score, 3) for score, disease in scored[:5]},
+            },
+        )
+
+    def _rank_candidates(
+        self, context: ConsultationContext,
+    ) -> list[tuple[float, Disease]]:
+        candidates = self._candidate_pool(context)
+        scored = self._score_candidates(
+            context.patient, candidates, exam_results=context.exam_results
+        )
+        return self._apply_memory(context, scored)
+
+    def _diagnose_with_deliberation(
+        self, context: ConsultationContext,
+    ) -> Action:
+        scored = self._rank_candidates(context)
+        for item in context.opinions:
+            disease_id = item.get("disease_id", "")
+            prior_weight = float(item.get("weight", 1.0))
+            for index, (score, disease) in enumerate(scored):
+                if disease.id == disease_id:
+                    scored[index] = (
+                        score + self.deliberation_weight * prior_weight,
+                        disease,
+                    )
+        scored.sort(key=lambda item: item[0], reverse=True)
+        if not scored:
+            return Action(
+                "diagnose",
+                {"disease_id": "", "disease_name": "未知", "reasoning": "无法识别", "scores": {}},
+            )
+        _, best = scored[0]
+        reasoning = self._build_reasoning(context, scored)
+        if context.opinions:
+            reasoning += f"；参考已有会诊意见 {len(context.opinions)} 条"
+        return Action(
+            "diagnose",
+            {
+                "disease_id": best.id,
+                "disease_name": best.name,
+                "reasoning": reasoning,
                 "scores": {disease.id: round(score, 3) for score, disease in scored[:5]},
             },
         )
@@ -385,6 +437,14 @@ class DoctorAgent(Agent):
         if context.retrieved_rules:
             rule_text = "；".join(hit["rule"] for hit in context.retrieved_rules)
             lines.append(f"经验规则：{rule_text}")
+        if context.opinions:
+            opinion_text = "；".join(
+                f"{item.get('doctor', '医生')}认为{item.get('disease_name', '')}"
+                f"（权重{item.get('weight', 1.0)}）"
+                for item in context.opinions
+            )
+            lines.append(f"已有会诊意见：{opinion_text}")
+            lines.append("你可以同意或提出不同意见，但需说明理由。")
         return "\n".join(lines)
 
     @staticmethod

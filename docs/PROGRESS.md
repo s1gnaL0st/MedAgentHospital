@@ -421,3 +421,38 @@ D 最终准确率高于 A 2.0pp，且曲线更稳定。
   不代表最终效果；
 - 后续可增大每科室训练量（如 50-100）并固定多次 seed 取平均，曲线会更稳；
 - HuatuoGPT 对比实验仍在 3090 待部署。
+
+## D10：打破闭环与多 Agent 协作深度
+
+### 目标
+
+1. 外部基准：不再只依赖“同一知识库生成 + 同一知识库评分”的闭环虚拟集；
+2. 会诊意见交换：会诊医生能看到主诊与前一医生意见，并据此调整自己的判断。
+
+### 实现
+
+- `medagent_hospital/benchmarks/`：外部医学多选题评测框架，
+  题目静态存于 JSON，prompt 不注入候选疾病，输出准确率与按来源分解；
+- `data/benchmarks/medical_mcq_sample.json`：16 道通用医学知识点演示题，
+  标注为演示样例，不构成正式基准；
+- `scripts/run_medical_benchmark.py`：用当前 LLM 后端跑外部基准，
+  产物写入 `data/experiments/medical_mcq_benchmark.json`；
+- `scripts/run_backend_comparison.py`：多 seed × 多底座进化对比，
+  输出 mean ± std，避免 D9 单 seed 先升后降的噪声结论；
+- `DoctorAgent`：新增 `deliberation_weight` 与 `_diagnose_with_deliberation`，
+  规则模式会诊按先前意见权重调整候选得分；LLM 模式把已有会诊意见写入
+  prompt，明确允许“同意或提出不同意见”；
+- 会诊意见新增 `considers` / `agrees_with` 字段，供前端与评测观察协作过程。
+
+### 验证
+
+- `tests/test_benchmark_mcq.py`：答案解析、准确率统计、来源分解、数据集加载；
+- `tests/test_multiagent.py`：会诊医生在无先前意见时保持独立视角，
+  看到主诊意见后按权重调整结论；
+- `tests/test_llm_doctor.py`：LLM 会诊 prompt 包含已有会诊意见。
+
+### 下一步
+
+- 用真实 LLM 跑外部基准，并用更大、更独立的公开题库（CMB/CBLUE）替换样例；
+- 在 Web 会诊回放中展示 `agrees_with` / `considers`；
+- 评估“检索到正确案例时准确率是否更高”，把 RAG 从机制变成可审计指标。

@@ -1,5 +1,6 @@
 """True multi-agent collaboration tests: nurse follow-up and doctor consultation."""
 
+from medagent_hospital.agents.doctor import DoctorAgent
 from medagent_hospital.agents.nurse import NurseAgent
 from medagent_hospital.agents.patient import PatientAgent
 from medagent_hospital.agents.registry import DoctorRegistry
@@ -122,6 +123,43 @@ def test_consultants_have_different_perspectives() -> None:
     assert opinion_one.payload["disease_id"] == "RESP-001"
     assert opinion_two.payload["disease_id"] == "RESP-004"
     assert opinion_one.payload["disease_id"] != opinion_two.payload["disease_id"]
+
+
+def test_consultant_deliberates_with_prior_opinion() -> None:
+    kb = load_knowledge_base()
+    department = kb.departments[1]
+    consultant = DoctorAgent(
+        kb=kb,
+        reasoner="rule",
+        focus="history",
+        symptom_weight=0.9,
+        exam_weight=0.7,
+        history_weight=2.0,
+        deliberation_weight=5.0,
+    )
+    patient = make_perspective_patient()
+
+    alone = ConsultationContext(patient=patient)
+    alone.department = department
+    alone.exam_results = patient.exam_results
+    solo = consultant._consult_opinion(alone)
+    assert solo.payload["disease_id"] == "RESP-004"
+
+    with_prior = ConsultationContext(patient=patient)
+    with_prior.department = department
+    with_prior.exam_results = patient.exam_results
+    with_prior.opinions = [
+        {
+            "doctor": "主诊医生",
+            "disease_id": "RESP-001",
+            "disease_name": "社区获得性肺炎",
+            "weight": 3.0,
+        }
+    ]
+    revised = consultant._consult_opinion(with_prior)
+    assert revised.payload["disease_id"] == "RESP-001"
+    assert revised.payload["considers"] == 1
+    assert "主诊医生" in revised.payload["agrees_with"]
 
 
 def test_arbitration_resolves_conflict() -> None:

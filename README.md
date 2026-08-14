@@ -19,6 +19,7 @@ medagent_hospital/
 ├── config.py            # 配置加载（.env）
 ├── llm/                 # LLM 后端抽象（OpenAI 兼容 + 规则兜底）
 ├── agents/              # 病人 / 护士 / 医生 Agent
+├── benchmarks/          # 外部医学多选题评测（不注入候选疾病）
 ├── memory/              # 医学案例库 + 经验库
 ├── knowledge/           # 疾病知识库
 ├── simulacrum/          # 医院仿真与进化训练
@@ -57,3 +58,24 @@ python scripts/smoke_deepseek.py
 ```
 
 运行前确认 `.env` 已配置 `LLM_BACKEND=deepseek` 和 `DEEPSEEK_API_KEY`。
+
+## 外部基准评测（打破闭环）
+
+内部虚拟测试集由同一份知识库生成，属于“开卷选择题”。外部医学多选题
+不注入候选疾病，用于衡量模型自身的医学知识：
+
+```bash
+python scripts/run_medical_benchmark.py
+```
+
+样例题库位于 `data/benchmarks/medical_mcq_sample.json`，报告写入
+`data/experiments/medical_mcq_benchmark.json`。题库越大、来源越独立，
+结论越可信；建议后续替换为 CMB / CBLUE 等公开数据集。
+
+## 多 seed 后端对比实验
+
+```bash
+python scripts/run_backend_comparison.py --backends rule llm --seeds 42 2024 7
+```
+
+每组固定同一套训练/测试配置，报告 mean ± std，避免单 seed 噪声结论。

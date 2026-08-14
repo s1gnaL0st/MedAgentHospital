@@ -23,6 +23,18 @@ class RaisingBackend(LLMBackend):
         raise RuntimeError("api unavailable")
 
 
+class CapturingBackend(LLMBackend):
+    name = "capture"
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.messages = None
+
+    def chat(self, messages, **kwargs) -> str:
+        self.messages = messages
+        return self.text
+
+
 def make_patient() -> PatientRecord:
     return PatientRecord(
         patient_id="LLM-TEST",
@@ -94,3 +106,28 @@ def test_llm_arbitration_uses_llm() -> None:
     assert action.type == "final_diagnosis"
     assert action.payload["disease_id"] == "RESP-004"
     assert action.payload["reasoning"].startswith("主任仲裁")
+
+
+def test_llm_consultation_sees_prior_opinions() -> None:
+    from medagent_hospital.knowledge import load_knowledge_base
+
+    kb = load_knowledge_base()
+    backend = CapturingBackend(
+        '{"disease_id": "RESP-004", "disease_name": "肺结核", "reasoning": "参考既往意见"}'
+    )
+    doctor = DoctorAgent(kb=kb, reasoner="llm", llm=backend)
+    context = ConsultationContext(patient=make_patient())
+    context.department = "呼吸科"
+    context.opinions = [
+        {
+            "doctor": "主诊医生",
+            "disease_id": "RESP-001",
+            "disease_name": "社区获得性肺炎",
+            "weight": 2.0,
+        }
+    ]
+    action = doctor._consult_opinion(context)
+    user_content = backend.messages[-1]["content"]
+    assert "已有会诊意见" in user_content
+    assert "主诊医生" in user_content
+    assert action.payload["disease_id"] == "RESP-004"
