@@ -134,6 +134,22 @@
   gap: 12px;
 }
 
+.done-banner {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #b9e3c8;
+  border-radius: 8px;
+  background: #e8f7ee;
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.done-banner p { margin: 0; }
+
 .role-window {
   background: var(--panel);
   border: 1px solid var(--line);

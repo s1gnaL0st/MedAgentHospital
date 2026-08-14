@@ -1,5 +1,5 @@
 const STAGES = ["guide", "doctor", "chief"];
-const ROLES = ["guide", "nurse", "doctor", "chief"];
+const ROLES = ["guide", "doctor", "chief"];
 const ROLE_LABELS = {
   guide: "导医",
   nurse: "护士",
@@ -9,9 +9,6 @@ const ROLE_LABELS = {
 const GENDER_LABELS = { male: "男", female: "女", any: "不限" };
 
 let session = null;
-let mediaRecorder = null;
-let mediaChunks = [];
-
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -57,6 +54,57 @@ function speak(text) {
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = "zh-CN";
   window.speechSynthesis.speak(utter);
+}
+
+function bindDictation(input, button, onError) {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    button.textContent = "不支持";
+    return;
+  }
+  let recognition = null;
+  button.addEventListener("click", () => {
+    if (recognition) {
+      recognition.stop();
+      recognition = null;
+      button.textContent = "语音转文字";
+      return;
+    }
+    recognition = new SpeechRecognition();
+    recognition.lang = "zh-CN";
+    recognition.interimResults = false;
+    recognition.onstart = () => {
+      button.textContent = "停止识别";
+    };
+    recognition.onresult = (event) => {
+      const text = Array.from(event.results)
+        .map((result) => result[0].transcript)
+        .join("");
+      input.value = input.value ? `${input.value}，${text}` : text;
+    };
+    recognition.onerror = (event) => {
+      const message =
+        event.error === "not-allowed"
+          ? "未授权麦克风"
+          : event.error === "no-speech"
+            ? "未识别到语音"
+            : "识别失败，请重试";
+      if (onError) onError(message);
+      button.textContent = message;
+      recognition = null;
+      setTimeout(() => {
+        button.textContent = "语音转文字";
+      }, 1500);
+    };
+    recognition.onend = () => {
+      if (recognition) {
+        recognition = null;
+        button.textContent = "语音转文字";
+      }
+    };
+    recognition.start();
+  });
 }
 
 function tagList(items) {
@@ -142,7 +190,6 @@ function renderOrders(state) {
 
 function roleBadge(role, state) {
   if (role === "guide") return state.department ? "分诊已确认" : "等待确认";
-  if (role === "nurse") return state.department ? "配合开单" : "待分诊";
   if (role === "doctor") {
     if (state.done) return "已定论";
     return state.stage === "doctor" ? "主诊中" : "待分诊";
@@ -225,13 +272,11 @@ function roleWindow(role, state) {
   textInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") sendBtn.click();
   });
-  const recordBtn = el("button", "btn ghost", "录音");
-  recordBtn.type = "button";
-  recordBtn.title = "录制语音消息并保存";
-  recordBtn.addEventListener("click", () =>
-    toggleRecording(role, recordBtn, state.session_id)
-  );
-  inputRow.append(textInput, sendBtn, recordBtn);
+  const dictateBtn = el("button", "btn ghost", "语音转文字");
+  dictateBtn.type = "button";
+  dictateBtn.title = "语音转文字填入对话";
+  bindDictation(textInput, dictateBtn);
+  inputRow.append(textInput, sendBtn, dictateBtn);
 
   const actions = el("div", "role-actions");
   renderRoleActions(actions, role, state);
@@ -243,6 +288,15 @@ function roleWindow(role, state) {
 function renderRoleGrid(state) {
   const grid = document.getElementById("roleGrid");
   grid.replaceChildren();
+  if (state.done) {
+    const banner = el("div", "done-banner");
+    banner.appendChild(el("p", "", "会诊记录已保存"));
+    const restart = el("button", "btn primary", "开始新会话");
+    restart.type = "button";
+    restart.addEventListener("click", reset);
+    banner.appendChild(restart);
+    grid.appendChild(banner);
+  }
   ROLES.forEach((role) => grid.appendChild(roleWindow(role, state)));
 }
 
@@ -413,8 +467,7 @@ function appendOrderActions(container, state, stage) {
 
   const row = el("div", "action-row");
   row.appendChild(select);
-  const confirmLabel =
-    stage === "doctor" ? "确认诊断并开单" : "主任确认最终方案";
+  const confirmLabel = "结诊";
   const confirm = el("button", "btn primary", confirmLabel);
   confirm.type = "button";
   confirm.addEventListener("click", async () => {
@@ -445,7 +498,7 @@ function appendOrderActions(container, state, stage) {
 
   container.append(examWrap, medWrap, row);
   if (stage === "doctor") {
-    const escalate = el("button", "btn ghost", "不确定，请求主任会诊");
+    const escalate = el("button", "btn ghost", "不确定，请主任判断");
     escalate.type = "button";
     escalate.addEventListener("click", async () => {
       escalate.disabled = true;
@@ -466,58 +519,6 @@ function appendOrderActions(container, state, stage) {
       }
     });
     container.appendChild(escalate);
-  }
-}
-
-async function toggleRecording(role, button, sessionId) {
-  if (!navigator.mediaDevices || !window.MediaRecorder) {
-    button.textContent = "不支持";
-    return;
-  }
-  if (mediaRecorder && mediaRecorder.state === "recording") {
-    mediaRecorder.stop();
-    return;
-  }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size) mediaChunks.push(event.data);
-    };
-    mediaRecorder.onstop = async () => {
-      stream.getTracks().forEach((track) => track.stop());
-      button.textContent = "录音";
-      if (!mediaChunks.length) return;
-      const blob = new Blob(mediaChunks, { type: "audio/webm" });
-      try {
-        const response = await fetch(
-          `/api/assistant/audio?session_id=${encodeURIComponent(sessionId)}`,
-          { method: "POST", body: blob }
-        );
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "音频保存失败");
-        const next = await api("/api/assistant/message", {
-          method: "POST",
-          body: {
-            session_id: sessionId,
-            role,
-            content: "（语音消息）",
-            audio_path: data.audio_path,
-          },
-        });
-        render(next);
-      } catch (error) {
-        const area = document.querySelector(
-          `.role-window [data-role="${role}"] .role-actions`
-        );
-        if (area) area.appendChild(el("div", "form-error", error.message));
-      }
-    };
-    mediaRecorder.start();
-    button.textContent = "停止";
-  } catch (_) {
-    button.textContent = "无权限";
   }
 }
 
@@ -550,29 +551,12 @@ document.getElementById("startForm").addEventListener("submit", async (event) =>
 
 document.getElementById("newSessionBtn").addEventListener("click", reset);
 
-document.getElementById("dictateBtn").addEventListener("click", () => {
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    document.getElementById("startError").textContent =
-      "当前浏览器不支持语音识别";
-    return;
+bindDictation(
+  document.getElementById("symptomsInput"),
+  document.getElementById("dictateBtn"),
+  (message) => {
+    document.getElementById("startError").textContent = message;
   }
-  const recognition = new SpeechRecognition();
-  recognition.lang = "zh-CN";
-  recognition.interimResults = false;
-  recognition.onresult = (event) => {
-    const text = Array.from(event.results)
-      .map((result) => result[0].transcript)
-      .join("");
-    const input = document.getElementById("symptomsInput");
-    input.value = input.value ? `${input.value},${text}` : text;
-  };
-  recognition.onerror = () => {
-    document.getElementById("startError").textContent =
-      "语音识别失败，请重试";
-  };
-  recognition.start();
-});
+);
 
 reset();

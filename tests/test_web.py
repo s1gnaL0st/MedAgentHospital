@@ -37,7 +37,7 @@ def test_assistant_start_returns_triage() -> None:
     assert state["suggestion"]["department"]
     assert state["suggestion"]["departments"]
     assert state["patient"]["symptoms"] == ["发热", "咳嗽", "胸痛"]
-    assert set(state["role_messages"]) == {"guide", "nurse", "doctor", "chief"}
+    assert set(state["role_messages"]) == {"guide", "doctor", "chief"}
 
 
 def test_assistant_discussion_returns_agent_reply() -> None:

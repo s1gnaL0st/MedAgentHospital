@@ -223,7 +223,6 @@ class AssistantSession:
     role_messages: dict[str, list[dict]] = field(
         default_factory=lambda: {
             "guide": [],
-            "nurse": [],
             "doctor": [],
             "chief": [],
         }
@@ -419,14 +418,6 @@ def _guide_reply(session: AssistantSession, content: str) -> str:
     return "；".join(lines)
 
 
-def _nurse_reply(session: AssistantSession, content: str) -> str:
-    department = session.department or "待定"
-    return (
-        f"我已就位（当前科室：{department}）。主诊开出的检查与用药医嘱我会负责执行准备；"
-        "如果你需要宣教、标本采集或护理安排，也可以直接告诉我。"
-    )
-
-
 def _doctor_reply(session: AssistantSession, content: str) -> str:
     if not session.department:
         return "请先完成导医分诊，我再聚焦对应科室的候选疾病。"
@@ -488,12 +479,6 @@ def _start_assistant(body: dict) -> dict:
     )
     _append_role_message(
         session,
-        "nurse",
-        "nurse",
-        "护理通道已就位：分诊确认后，我会配合主诊的检查与用药医嘱执行护理准备。",
-    )
-    _append_role_message(
-        session,
         "doctor",
         "doctor",
         "主诊已就位：分诊确认后，我会先追问关键症状，再给出鉴别诊断、检查与用药建议。",
@@ -514,7 +499,7 @@ def _message_assistant(body: dict) -> dict:
     role = str(body.get("role", ""))
     content = str(body.get("content", "")).strip()
     audio_path = str(body.get("audio_path", "")).strip()
-    if role not in {"guide", "nurse", "doctor", "chief"}:
+    if role not in {"guide", "doctor", "chief"}:
         raise ValueError(f"无效角色: {role}")
     if not content:
         raise ValueError("消息内容为空")
@@ -525,7 +510,6 @@ def _message_assistant(body: dict) -> dict:
     )
     reply = {
         "guide": _guide_reply,
-        "nurse": _nurse_reply,
         "doctor": _doctor_reply,
         "chief": _chief_reply,
     }[role](session, content)
@@ -648,12 +632,6 @@ def _confirm_assistant(body: dict) -> dict:
                 f"初步鉴别诊断：{session.suggestion['best_name']}。",
                 payload=session.suggestion,
             )
-        _append_role_message(
-            session,
-            "nurse",
-            "nurse",
-            f"收到分诊：{department}。等待主诊开出检查与用药医嘱。",
-        )
         return _assistant_state(session)
 
     if stage == "doctor":
