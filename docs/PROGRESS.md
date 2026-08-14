@@ -456,3 +456,34 @@ D 最终准确率高于 A 2.0pp，且曲线更稳定。
 - 用真实 LLM 跑外部基准，并用更大、更独立的公开题库（CMB/CBLUE）替换样例；
 - 在 Web 会诊回放中展示 `agrees_with` / `considers`；
 - 评估“检索到正确案例时准确率是否更高”，把 RAG 从机制变成可审计指标。
+
+## D11：角色化辅助诊断工作台（/assistant）
+
+### 目标
+
+把模拟层与辅助层分开：医院模拟负责 Agent 进化，辅助诊断界面按角色
+提供会话式决策支持，最终由医生确认。
+
+### 实现
+
+- `POST /api/assistant/start`：录入病人信息，导医生成分诊建议与科室匹配排序；
+- `POST /api/assistant/answer`：护士逐项追问，答案写回共享病人会话；
+- `POST /api/assistant/confirm`：导医 / 护士 / 主诊 / 主任四阶段确认，
+  支持医生改写分诊科室与诊断；
+- `GET /api/assistant/state`：按会话读取当前状态，方便前端刷新；
+- `medagent_hospital/web/static/assistant.{html,css,js}`：角色化工作台，
+  左侧流程、中间会话、右侧患者信息与建议；
+- `tests/test_web.py`：覆盖完整四阶段流程与阶段错误校验。
+
+### 验证
+
+- 48 个测试全部通过；
+- `node --check assistant.js` 通过；
+- HTTP 验证：`/api/assistant/start` 返回导医建议与科室匹配；
+- 服务器运行于 `http://127.0.0.1:8000/assistant`。
+
+### 下一步
+
+- 医生最终确认回写案例库/经验库，让辅助层复用模拟层进化出的记忆；
+- 主诊/主任界面接入 LLM 模式与会诊意见交换；
+- 按角色做字段可见性控制，模拟真实科室权限。
