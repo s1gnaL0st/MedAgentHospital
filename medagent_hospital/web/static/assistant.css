@@ -7,6 +7,23 @@
   margin: 0 auto;
 }
 
+.model-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.model-label select {
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0 8px;
+}
+
 .rail, .side { position: sticky; top: 66px; }
 
 .stage-list {

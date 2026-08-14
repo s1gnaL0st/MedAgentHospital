@@ -63,6 +63,7 @@ python scripts/run_deepseek_evolution.py
    - 点“不确定，请主任判断”：主任查看历史对话后下最终结论再结诊。
 
 症状输入与角色对话都支持浏览器语音转文字；Agent 回复支持语音朗读。
+顶部“推理模式”可在规则模式与 DeepSeek 之间切换，会话进行中也能即时切换。
 所有会话、消息、检查/用药医嘱持久化到
 `data/generated/hospital_records.db`。该界面定位为医生决策支持演示，
 不构成临床诊断。

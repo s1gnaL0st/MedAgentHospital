@@ -8,6 +8,7 @@ from medagent_hospital.web.server import (
     _kb_overview,
     _message_assistant,
     _run_episode,
+    _set_reasoner_assistant,
     _start_assistant,
 )
 
@@ -54,6 +55,19 @@ def test_assistant_discussion_returns_agent_reply() -> None:
     guide_messages = state["role_messages"]["guide"]
     assert guide_messages[-1]["sender"] == "guide"
     assert "呼吸科" in guide_messages[-1]["content"]
+
+
+def test_assistant_reasoner_switch() -> None:
+    state = _start_assistant({"symptoms": "发热", "reasoner": "llm"})
+    assert state["reasoner"] == "llm"
+    state = _set_reasoner_assistant(
+        {"session_id": state["session_id"], "reasoner": "rule"}
+    )
+    assert state["reasoner"] == "rule"
+    with pytest.raises(ValueError):
+        _set_reasoner_assistant(
+            {"session_id": state["session_id"], "reasoner": "gpt"}
+        )
 
 
 def test_assistant_doctor_flow_persists_orders() -> None:

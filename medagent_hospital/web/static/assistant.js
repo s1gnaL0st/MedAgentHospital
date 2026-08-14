@@ -119,6 +119,9 @@ function tagList(items) {
 
 function render(state) {
   session = state;
+  const modelSelect = document.getElementById("assistantModelSelect");
+  const reasoner = state.reasoner || "rule";
+  if (modelSelect.value !== reasoner) modelSelect.value = reasoner;
   renderStages(state);
   renderPatient(state);
   renderOrders(state);
@@ -526,6 +529,7 @@ document.getElementById("startForm").addEventListener("submit", async (event) =>
   event.preventDefault();
   document.getElementById("startError").textContent = "";
   const body = {
+    reasoner: document.getElementById("assistantModelSelect").value,
     gender: document.getElementById("genderInput").value,
     age: Number(document.getElementById("ageInput").value) || 45,
     symptoms: document.getElementById("symptomsInput").value,
@@ -550,6 +554,20 @@ document.getElementById("startForm").addEventListener("submit", async (event) =>
 });
 
 document.getElementById("newSessionBtn").addEventListener("click", reset);
+
+document.getElementById("assistantModelSelect").addEventListener("change", async () => {
+  if (!session) return;
+  const reasoner = document.getElementById("assistantModelSelect").value;
+  try {
+    const next = await api("/api/assistant/reasoner", {
+      method: "POST",
+      body: { session_id: session.session_id, reasoner },
+    });
+    render(next);
+  } catch (error) {
+    document.getElementById("startError").textContent = error.message;
+  }
+});
 
 bindDictation(
   document.getElementById("symptomsInput"),

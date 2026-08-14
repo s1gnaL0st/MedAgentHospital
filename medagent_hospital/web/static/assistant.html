@@ -17,7 +17,15 @@
       <a class="tab" href="/">医院模拟</a>
       <a class="tab active" href="/assistant">辅助诊断</a>
     </nav>
-    <div class="status"><span class="dot"></span><span>医生决策支持</span></div>
+    <div class="status">
+      <label class="model-label">推理模式
+        <select id="assistantModelSelect" aria-label="推理模式">
+          <option value="rule">规则模式</option>
+          <option value="llm">DeepSeek</option>
+        </select>
+      </label>
+      <span class="dot"></span><span>医生决策支持</span>
+    </div>
   </header>
 
   <main class="assistant-main">

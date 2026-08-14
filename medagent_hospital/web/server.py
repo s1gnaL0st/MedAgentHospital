@@ -217,6 +217,7 @@ def _run_evolution(body: dict) -> dict:
 class AssistantSession:
     session_id: str
     patient: PatientRecord
+    reasoner: str = "rule"
     stage: str = "guide"
     department: str | None = None
     decisions: dict = field(default_factory=dict)
@@ -267,24 +268,31 @@ def _assistant_patient(body: dict) -> PatientRecord:
     )
 
 
-def _triage_suggestion(patient: PatientRecord) -> dict:
-    guide = GuideAgent(kb=STATE.kb, reasoner="rule")
-    department, matched = guide._rule_triage(patient)
+def _triage_suggestion(patient: PatientRecord, reasoner: str = "rule") -> dict:
+    guide = GuideAgent(kb=STATE.kb, reasoner=reasoner)
+    context = ConsultationContext(patient=patient)
+    context.current_state = HospitalState.TRIAGE
+    action = guide.run(context)
+    department = action.payload.get("department", STATE.kb.departments[0])
+    matched = 0
     department_scores = []
     for candidate in STATE.kb.departments:
         symptoms: set[str] = set()
         for disease in STATE.kb.by_department(candidate):
             symptoms.update(disease.symptoms)
+        overlap = len(set(patient.symptoms) & symptoms)
+        if candidate == department:
+            matched = overlap
         department_scores.append(
             {
                 "department": candidate,
-                "matched": len(set(patient.symptoms) & symptoms),
+                "matched": overlap,
             }
         )
     department_scores.sort(key=lambda item: item["matched"], reverse=True)
     return {
         "department": department,
-        "reason": f"症状匹配 {matched}",
+        "reason": action.payload.get("reason", f"症状匹配 {matched}"),
         "departments": department_scores,
     }
 
@@ -309,10 +317,12 @@ def _doctor_questions(
     return questions
 
 
-def _doctor_suggestion(patient: PatientRecord, department: str) -> dict:
+def _doctor_suggestion(
+    patient: PatientRecord, department: str, reasoner: str = "rule"
+) -> dict:
     doctor = DoctorAgent(
         kb=STATE.kb,
-        reasoner="rule",
+        reasoner=reasoner,
         case_base=STATE.guide_case_base,
         experience_base=STATE.guide_experience_base,
     )
@@ -335,13 +345,22 @@ def _doctor_suggestion(patient: PatientRecord, department: str) -> dict:
             if exam.name not in exams:
                 exams.append(exam.name)
     best = scored[0][1] if scored else None
+    reasoning = doctor._build_reasoning(context, scored) if scored else "无法识别"
+    if reasoner == "llm":
+        action = doctor._llm_diagnose(context)
+        disease = STATE.kb.get(action.payload.get("disease_id", "")) or STATE.kb.by_name(
+            action.payload.get("disease_name", "")
+        )
+        if disease is not None:
+            best = disease
+            reasoning = action.payload.get("reasoning", reasoning)
     return {
         "candidates": candidates,
         "best_id": best.id if best else "",
         "best_name": best.name if best else "",
         "exams": exams[:6],
         "treatment": list(best.treatments) if best else [],
-        "reasoning": doctor._build_reasoning(context, scored) if scored else "无法识别",
+        "reasoning": reasoning,
         "retrieved_cases": context.retrieved_cases,
         "retrieved_rules": context.retrieved_rules,
     }
@@ -372,6 +391,7 @@ def _append_role_message(
 def _assistant_state(session: AssistantSession) -> dict:
     return {
         "session_id": session.session_id,
+        "reasoner": session.reasoner,
         "stage": session.stage,
         "done": session.stage == "done",
         "patient": {
@@ -401,7 +421,7 @@ def _get_assistant_session(body: dict) -> AssistantSession:
 
 
 def _guide_reply(session: AssistantSession, content: str) -> str:
-    suggestion = _triage_suggestion(session.patient)
+    suggestion = _triage_suggestion(session.patient, session.reasoner)
     lines = [f"我的分诊建议仍是「{suggestion['department']}」，依据是{suggestion['reason']}。"]
     mentioned = [dep for dep in STATE.kb.departments if dep in content]
     for dep in mentioned[:2]:
@@ -421,7 +441,9 @@ def _guide_reply(session: AssistantSession, content: str) -> str:
 def _doctor_reply(session: AssistantSession, content: str) -> str:
     if not session.department:
         return "请先完成导医分诊，我再聚焦对应科室的候选疾病。"
-    suggestion = _doctor_suggestion(session.patient, session.department)
+    suggestion = _doctor_suggestion(
+        session.patient, session.department, session.reasoner
+    )
     if any(word in content for word in ["检查", "开检查", "辅助检查"]):
         return f"根据目前信息，建议优先检查：{'、'.join(suggestion['exams'][:5]) or '暂无'}。"
     if any(word in content for word in ["药", "治疗", "开药"]):
@@ -448,9 +470,13 @@ def _start_assistant(body: dict) -> dict:
     patient = _assistant_patient(body)
     if not patient.symptoms:
         raise ValueError("请至少输入一个症状")
+    reasoner = str(body.get("reasoner", "rule")).strip().lower()
+    if reasoner not in {"rule", "llm"}:
+        raise ValueError("无效推理模式")
     session = AssistantSession(
         session_id=uuid.uuid4().hex[:12],
         patient=patient,
+        reasoner=reasoner,
     )
     patient_view = {
         "id": patient.patient_id,
@@ -462,7 +488,7 @@ def _start_assistant(body: dict) -> dict:
         "risk_factors": list(patient.risk_factors),
     }
     STATE.hospital_store.create_session(session.session_id, patient_view)
-    suggestion = _triage_suggestion(patient)
+    suggestion = _triage_suggestion(patient, reasoner)
     session.suggestion = suggestion
     _append_role_message(
         session,
@@ -517,6 +543,15 @@ def _message_assistant(body: dict) -> dict:
     return _assistant_state(session)
 
 
+def _set_reasoner_assistant(body: dict) -> dict:
+    session = _get_assistant_session(body)
+    reasoner = str(body.get("reasoner", "rule")).strip().lower()
+    if reasoner not in {"rule", "llm"}:
+        raise ValueError("无效推理模式")
+    session.reasoner = reasoner
+    return _assistant_state(session)
+
+
 def _answer_question_assistant(body: dict) -> dict:
     session = _get_assistant_session(body)
     if session.stage != "doctor":
@@ -553,7 +588,9 @@ def _answer_question_assistant(body: dict) -> dict:
         )
         return _assistant_state(session)
     session.decisions["questions_done"] = True
-    session.suggestion = _doctor_suggestion(session.patient, session.department)
+    session.suggestion = _doctor_suggestion(
+        session.patient, session.department, session.reasoner
+    )
     _append_role_message(
         session,
         "doctor",
@@ -624,7 +661,9 @@ def _confirm_assistant(body: dict) -> dict:
                 payload=session.suggestion,
             )
         else:
-            session.suggestion = _doctor_suggestion(session.patient, department)
+            session.suggestion = _doctor_suggestion(
+                session.patient, department, session.reasoner
+            )
             _append_role_message(
                 session,
                 "doctor",
@@ -649,7 +688,7 @@ def _confirm_assistant(body: dict) -> dict:
             )
             session.stage = "chief"
             doctor_suggestion = _doctor_suggestion(
-                session.patient, session.department
+                session.patient, session.department, session.reasoner
             )
             session.suggestion = {
                 "department": session.department,
@@ -836,6 +875,9 @@ class DemoHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/assistant/message":
                 _json_response(self, _message_assistant(body))
+                return
+            if path == "/api/assistant/reasoner":
+                _json_response(self, _set_reasoner_assistant(body))
                 return
             if path == "/api/assistant/answer_question":
                 _json_response(self, _answer_question_assistant(body))
