@@ -258,6 +258,13 @@
   letter-spacing: 0.04em;
 }
 
+.suggestion-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
 .role-input {
   display: flex;
   gap: 6px;

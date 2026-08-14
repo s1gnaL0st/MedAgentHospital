@@ -40,6 +40,7 @@ from medagent_hospital.web.hospital_store import HospitalRecordStore
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 AUDIO_DIR = Path(__file__).resolve().parents[2] / "data" / "generated" / "audio"
+IMAGING_KEYWORDS = ("CT", "X线", "X光", "MRI", "核磁", "超声", "B超", "造影")
 
 
 class DemoState:
@@ -410,6 +411,7 @@ def _assistant_state(session: AssistantSession) -> dict:
         "question_index": session.question_index,
         "suggestion": session.suggestion,
         "orders": STATE.hospital_store.list_orders(session.session_id),
+        "reports": STATE.hospital_store.list_reports(session.session_id),
     }
 
 
@@ -616,8 +618,43 @@ def _persist_orders(
 ) -> None:
     for name in exams:
         STATE.hospital_store.add_order(session.session_id, "exam", name)
+        report = _imaging_report(session, name)
+        if report is not None:
+            STATE.hospital_store.add_report(
+                session.session_id,
+                report["exam_name"],
+                report["findings"],
+                report["impression"],
+                report["suggestion"],
+            )
     for name in medications:
         STATE.hospital_store.add_order(session.session_id, "medication", name)
+
+
+def _imaging_report(
+    session: AssistantSession, exam_name: str
+) -> dict | None:
+    if not any(keyword in exam_name for keyword in IMAGING_KEYWORDS):
+        return None
+    findings = ""
+    for disease in STATE.kb.by_department(session.department or ""):
+        for exam in disease.examinations:
+            if exam.name == exam_name:
+                findings = exam.findings
+                impression = f"符合{disease.name}影像表现，请结合临床"
+                break
+        if findings:
+            break
+    if not findings:
+        findings = "图像未见明确异常，请结合临床"
+        impression = "未发现明确阳性征象"
+    suggestion = "建议结合临床复查或进一步检查"
+    return {
+        "exam_name": exam_name,
+        "findings": findings,
+        "impression": impression,
+        "suggestion": suggestion,
+    }
 
 
 def _confirm_assistant(body: dict) -> dict:

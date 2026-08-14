@@ -109,6 +109,40 @@ def test_assistant_doctor_flow_persists_orders() -> None:
     assert saved["completed_at"] is not None
 
 
+def test_assistant_imaging_report_generated() -> None:
+    from medagent_hospital.web.server import STATE
+
+    state = _start_assistant(
+        {"gender": "male", "age": 60, "symptoms": "喘息,胸闷,咳嗽"}
+    )
+    session_id = state["session_id"]
+    state = _confirm_assistant(
+        {"session_id": session_id, "stage": "guide", "accepted": True}
+    )
+    while state["stage"] == "doctor" and state["suggestion"].get("question"):
+        state = _answer_question_assistant(
+            {
+                "session_id": session_id,
+                "symptom": state["suggestion"]["question"],
+                "present": True,
+            }
+        )
+    state = _confirm_assistant(
+        {
+            "session_id": session_id,
+            "stage": "doctor",
+            "accepted": True,
+            "exams": ["胸部CT"],
+            "medications": [],
+        }
+    )
+    assert state["done"] is True
+    assert state["reports"]
+    reports = STATE.hospital_store.list_reports(session_id)
+    assert any(report["exam_name"] == "胸部CT" for report in reports)
+    assert all(report["impression"] for report in reports)
+
+
 def test_assistant_escalation_to_chief() -> None:
     state = _start_assistant(
         {"gender": "male", "age": 60, "symptoms": "喘息,胸闷,咳嗽"}

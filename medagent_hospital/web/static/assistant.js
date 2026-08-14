@@ -169,7 +169,10 @@ function renderPatient(state) {
 function renderOrders(state) {
   const panel = document.getElementById("orderPanel");
   panel.replaceChildren();
-  if (!state.orders || !state.orders.length) {
+  if (
+    (!state.orders || !state.orders.length) &&
+    (!state.reports || !state.reports.length)
+  ) {
     panel.appendChild(el("span", "muted", "尚未开单"));
     return;
   }
@@ -189,6 +192,20 @@ function renderOrders(state) {
       tagList(medications.map((item) => item.name))
     );
   }
+  (state.reports || []).forEach((report) => {
+    panel.appendChild(el("div", "suggestion-section"));
+    const section = panel.lastElementChild;
+    section.appendChild(el("h3", "", `影像报告 · ${report.exam_name}`));
+    section.appendChild(
+      el("p", "suggestion-text", `检查所见：${report.findings}`)
+    );
+    section.appendChild(
+      el("p", "suggestion-text", `报告结论：${report.impression}`)
+    );
+    section.appendChild(
+      el("p", "suggestion-text", `建议：${report.suggestion}`)
+    );
+  });
 }
 
 function roleBadge(role, state) {

@@ -524,3 +524,26 @@ D 最终准确率高于 A 2.0pp，且曲线更稳定。
 
 - 语音识别依赖浏览器 Web Speech API，失败时区分未授权/未识别/网络原因；
 - Agent 回复的“AI 语音”当前用浏览器 TTS 朗读，文字内容已持久化。
+
+## D13：拍片类检查自动生成影像报告
+
+### 目标
+
+主诊开出拍片类检查（CT / X线 / 核磁 / 超声 / 造影）后，自动生成结构化
+影像报告并写入医院记录库，让“开检查 → 出报告”形成完整闭环。
+
+### 实现
+
+- `medagent_hospital/web/hospital_store.py`：新增 `reports` 表，
+  提供 `add_report` / `list_reports`；
+- `medagent_hospital/web/server.py`：新增 `IMAGING_KEYWORDS` 与
+  `_imaging_report`，按知识库检查所见生成
+  “检查所见 / 报告结论 / 建议”；
+- 主诊或主任结诊时，对拍片类检查自动生成报告并持久化；
+- `/assistant` 前端在“医嘱记录”面板展示影像报告内容。
+
+### 验证
+
+- 52 个测试全部通过；
+- HTTP 实测：开出“胸部CT”结诊后生成并保存影像报告；
+- 服务运行于 `http://127.0.0.1:8000/assistant`。

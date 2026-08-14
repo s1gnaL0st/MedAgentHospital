@@ -57,8 +57,18 @@ class HospitalRecordStore:
                 status TEXT NOT NULL,
                 created_at REAL NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                exam_name TEXT NOT NULL,
+                findings TEXT NOT NULL,
+                impression TEXT NOT NULL,
+                suggestion TEXT NOT NULL,
+                created_at REAL NOT NULL
+            );
             CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
             CREATE INDEX IF NOT EXISTS idx_orders_session ON orders(session_id);
+            CREATE INDEX IF NOT EXISTS idx_reports_session ON reports(session_id);
             """
         )
         self._conn.commit()
@@ -125,9 +135,36 @@ class HospitalRecordStore:
         )
         self._conn.commit()
 
+    def add_report(
+        self,
+        session_id: str,
+        exam_name: str,
+        findings: str,
+        impression: str,
+        suggestion: str,
+    ) -> None:
+        self._conn.execute(
+            """
+            INSERT INTO reports (session_id, exam_name, findings, impression, suggestion, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (session_id, exam_name, findings, impression, suggestion, time.time()),
+        )
+        self._conn.commit()
+
     def list_orders(self, session_id: str) -> list[dict]:
         rows = self._conn.execute(
             "SELECT kind, name, status FROM orders WHERE session_id = ? ORDER BY id",
+            (session_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_reports(self, session_id: str) -> list[dict]:
+        rows = self._conn.execute(
+            """
+            SELECT exam_name, findings, impression, suggestion
+            FROM reports WHERE session_id = ? ORDER BY id
+            """,
             (session_id,),
         ).fetchall()
         return [dict(row) for row in rows]
