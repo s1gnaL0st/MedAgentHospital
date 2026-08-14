@@ -36,8 +36,10 @@ from medagent_hospital.simulacrum.models import (
     HospitalState,
     PatientRecord,
 )
+from medagent_hospital.web.hospital_store import HospitalRecordStore
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+AUDIO_DIR = Path(__file__).resolve().parents[2] / "data" / "generated" / "audio"
 
 
 class DemoState:
@@ -48,6 +50,7 @@ class DemoState:
         self.guide_case_base = MedicalCaseBase()
         self.guide_experience_base = ExperienceBase()
         self.assistant_sessions: dict[str, "AssistantSession"] = {}
+        self.hospital_store = HospitalRecordStore()
         self.lock = threading.Lock()
 
 
@@ -217,7 +220,14 @@ class AssistantSession:
     stage: str = "guide"
     department: str | None = None
     decisions: dict = field(default_factory=dict)
-    messages: list[dict] = field(default_factory=list)
+    role_messages: dict[str, list[dict]] = field(
+        default_factory=lambda: {
+            "guide": [],
+            "nurse": [],
+            "doctor": [],
+            "chief": [],
+        }
+    )
     pending_questions: list[str] = field(default_factory=list)
     question_index: int = 0
     suggestion: dict | None = None
@@ -280,7 +290,7 @@ def _triage_suggestion(patient: PatientRecord) -> dict:
     }
 
 
-def _nurse_questions(
+def _doctor_questions(
     patient: PatientRecord, department: str, limit: int = 3
 ) -> list[str]:
     doctor = DoctorAgent(kb=STATE.kb, reasoner="rule")
@@ -338,23 +348,26 @@ def _doctor_suggestion(patient: PatientRecord, department: str) -> dict:
     }
 
 
-def _chief_suggestion(session: AssistantSession) -> dict:
-    doctor_decision = session.decisions.get("doctor", {})
-    disease = STATE.kb.get(doctor_decision.get("disease_id", "")) or STATE.kb.by_name(
-        doctor_decision.get("disease_name", "")
-    )
-    nurse_answers = session.decisions.get("nurse", {}).get("answered", [])
-    return {
-        "department": session.department,
-        "diagnosis_id": doctor_decision.get("disease_id", ""),
-        "diagnosis_name": doctor_decision.get("disease_name", ""),
-        "treatment": list(disease.treatments) if disease else [],
-        "follow_up": ["按医嘱复查", "症状加重或新发症状及时复诊"],
-        "summary": (
-            f"导医分诊至{session.department or '待定'}；护士追问 {len(nurse_answers)} 项；"
-            f"主诊建议 {doctor_decision.get('disease_name', '待定')}。"
-        ),
+def _append_role_message(
+    session: AssistantSession,
+    role: str,
+    sender: str,
+    content: str,
+    payload: dict | None = None,
+    audio_path: str = "",
+) -> None:
+    message: dict = {
+        "sender": sender,
+        "role": role,
+        "content": content,
+        "payload": payload or {},
     }
+    if audio_path:
+        message["audio_path"] = audio_path
+    session.role_messages.setdefault(role, []).append(message)
+    STATE.hospital_store.add_message(
+        session.session_id, sender, role, content, audio_path
+    )
 
 
 def _assistant_state(session: AssistantSession) -> dict:
@@ -373,10 +386,11 @@ def _assistant_state(session: AssistantSession) -> dict:
         },
         "department": session.department,
         "decisions": session.decisions,
-        "messages": session.messages,
+        "role_messages": session.role_messages,
         "pending_questions": list(session.pending_questions),
         "question_index": session.question_index,
         "suggestion": session.suggestion,
+        "orders": STATE.hospital_store.list_orders(session.session_id),
     }
 
 
@@ -387,6 +401,58 @@ def _get_assistant_session(body: dict) -> AssistantSession:
     return session
 
 
+def _guide_reply(session: AssistantSession, content: str) -> str:
+    suggestion = _triage_suggestion(session.patient)
+    lines = [f"我的分诊建议仍是「{suggestion['department']}」，依据是{suggestion['reason']}。"]
+    mentioned = [dep for dep in STATE.kb.departments if dep in content]
+    for dep in mentioned[:2]:
+        match = next(
+            (item for item in suggestion["departments"] if item["department"] == dep),
+            None,
+        )
+        if match:
+            lines.append(
+                f"关于「{dep}」：当前匹配 {match['matched']} 项症状，"
+                f"而建议科室匹配 {suggestion['departments'][0]['matched']} 项。"
+            )
+    lines.append("如果你有不同判断，可以直接说明理由，或最后修改科室后再确认。")
+    return "；".join(lines)
+
+
+def _nurse_reply(session: AssistantSession, content: str) -> str:
+    department = session.department or "待定"
+    return (
+        f"我已就位（当前科室：{department}）。主诊开出的检查与用药医嘱我会负责执行准备；"
+        "如果你需要宣教、标本采集或护理安排，也可以直接告诉我。"
+    )
+
+
+def _doctor_reply(session: AssistantSession, content: str) -> str:
+    if not session.department:
+        return "请先完成导医分诊，我再聚焦对应科室的候选疾病。"
+    suggestion = _doctor_suggestion(session.patient, session.department)
+    if any(word in content for word in ["检查", "开检查", "辅助检查"]):
+        return f"根据目前信息，建议优先检查：{'、'.join(suggestion['exams'][:5]) or '暂无'}。"
+    if any(word in content for word in ["药", "治疗", "开药"]):
+        return f"目前治疗参考：{'、'.join(suggestion['treatment'][:5]) or '暂无'}。"
+    if any(word in content for word in ["为什么", "理由", "依据", "鉴别"]):
+        return f"鉴别诊断依据：{suggestion['reasoning']}"
+    return (
+        f"当前最可能诊断：{suggestion['best_name']}。"
+        "你可以继续和我讨论，也可以让我先追问几个关键症状再下结论。"
+    )
+
+
+def _chief_reply(session: AssistantSession, content: str) -> str:
+    if session.stage != "chief":
+        return "我目前没有收到会诊请求。主诊医师拿不准时可以请求会诊，我会查看完整历史对话后再给意见。"
+    decision = session.decisions.get("doctor", {})
+    return (
+        f"我已查看本次会话历史。主诊倾向：{decision.get('disease_name', '待定')}。"
+        "请主任复核诊断、检查与用药；我会在最终确认后把记录写入医院系统。"
+    )
+
+
 def _start_assistant(body: dict) -> dict:
     patient = _assistant_patient(body)
     if not patient.symptoms:
@@ -395,55 +461,96 @@ def _start_assistant(body: dict) -> dict:
         session_id=uuid.uuid4().hex[:12],
         patient=patient,
     )
+    patient_view = {
+        "id": patient.patient_id,
+        "name": patient.name,
+        "gender": patient.gender,
+        "age": patient.age,
+        "symptoms": list(patient.symptoms),
+        "medical_history": list(patient.medical_history),
+        "risk_factors": list(patient.risk_factors),
+    }
+    STATE.hospital_store.create_session(session.session_id, patient_view)
     suggestion = _triage_suggestion(patient)
     session.suggestion = suggestion
-    session.messages.append(
-        {
-            "role": "guide",
-            "stage": "guide",
-            "content": f"根据当前症状，建议先前往「{suggestion['department']}」就诊。",
-            "payload": suggestion,
-        }
+    _append_role_message(
+        session,
+        "guide",
+        "guide",
+        f"根据当前症状，建议先前往「{suggestion['department']}」就诊。",
+        payload=suggestion,
+    )
+    _append_role_message(
+        session,
+        "guide",
+        "guide",
+        "我是导医 Agent，只提建议：你可以和我讨论、反驳，最后再确认分诊。",
+    )
+    _append_role_message(
+        session,
+        "nurse",
+        "nurse",
+        "护理通道已就位：分诊确认后，我会配合主诊的检查与用药医嘱执行护理准备。",
+    )
+    _append_role_message(
+        session,
+        "doctor",
+        "doctor",
+        "主诊已就位：分诊确认后，我会先追问关键症状，再给出鉴别诊断、检查与用药建议。",
+    )
+    _append_role_message(
+        session,
+        "chief",
+        "chief",
+        "主任会诊通道已就位：主诊拿不准时可以请求会诊，我会查看完整历史对话后给出意见。",
     )
     with STATE.lock:
         STATE.assistant_sessions[session.session_id] = session
     return _assistant_state(session)
 
 
-def _advance_to_doctor(session: AssistantSession) -> dict:
-    suggestion = _doctor_suggestion(session.patient, session.department)
-    session.suggestion = suggestion
-    session.stage = "doctor"
-    session.messages.append(
-        {
-            "role": "doctor",
-            "stage": "doctor",
-            "content": "主诊医师建议：请结合检查与病史复核以下鉴别诊断。",
-            "payload": suggestion,
-        }
+def _message_assistant(body: dict) -> dict:
+    session = _get_assistant_session(body)
+    role = str(body.get("role", ""))
+    content = str(body.get("content", "")).strip()
+    audio_path = str(body.get("audio_path", "")).strip()
+    if role not in {"guide", "nurse", "doctor", "chief"}:
+        raise ValueError(f"无效角色: {role}")
+    if not content:
+        raise ValueError("消息内容为空")
+    if audio_path and not audio_path.startswith("/audio/"):
+        raise ValueError("无效音频地址")
+    _append_role_message(
+        session, role, "user", content, audio_path=audio_path
     )
+    reply = {
+        "guide": _guide_reply,
+        "nurse": _nurse_reply,
+        "doctor": _doctor_reply,
+        "chief": _chief_reply,
+    }[role](session, content)
+    _append_role_message(session, role, role, reply)
     return _assistant_state(session)
 
 
-def _answer_assistant(body: dict) -> dict:
+def _answer_question_assistant(body: dict) -> dict:
     session = _get_assistant_session(body)
-    if session.stage != "nurse":
-        raise ValueError(f"当前阶段为 {session.stage}，不能回答追问")
+    if session.stage != "doctor":
+        raise ValueError(f"当前阶段为 {session.stage}，主诊追问只在主诊阶段可用")
     symptom = str(body.get("symptom", "")).strip()
     present = bool(body.get("present", False))
     if not symptom:
         raise ValueError("缺少症状字段")
     if present and symptom not in session.patient.symptoms:
         session.patient.symptoms.append(symptom)
-    answered = session.decisions.setdefault("nurse", {}).setdefault("answered", [])
-    answered.append({"symptom": symptom, "present": present})
-    session.messages.append(
-        {
-            "role": "user",
-            "stage": "nurse",
-            "content": f"{'有' if present else '没有'} {symptom}",
-            "payload": {"symptom": symptom, "present": present},
-        }
+    session.decisions.setdefault("questions", []).append(
+        {"symptom": symptom, "present": present}
+    )
+    _append_role_message(
+        session,
+        "doctor",
+        "user",
+        f"{'有' if present else '没有'} {symptom}（主诊追问）",
     )
     session.question_index += 1
     if session.question_index < len(session.pending_questions):
@@ -453,19 +560,43 @@ def _answer_assistant(body: dict) -> dict:
             "question_index": session.question_index + 1,
             "total": len(session.pending_questions),
         }
-        session.messages.append(
-            {
-                "role": "nurse",
-                "stage": "nurse",
-                "content": f"请确认：{question}？",
-                "payload": session.suggestion,
-            }
+        _append_role_message(
+            session,
+            "doctor",
+            "doctor",
+            f"建议补充确认：{question}？",
+            payload=session.suggestion,
         )
         return _assistant_state(session)
-    session.messages.append(
-        {"role": "nurse", "stage": "nurse", "content": "护士确认：问诊完成", "payload": {}}
+    session.decisions["questions_done"] = True
+    session.suggestion = _doctor_suggestion(session.patient, session.department)
+    _append_role_message(
+        session,
+        "doctor",
+        "doctor",
+        f"追问完成，更新后最可能诊断：{session.suggestion['best_name']}。",
+        payload=session.suggestion,
     )
-    return _advance_to_doctor(session)
+    return _assistant_state(session)
+
+
+def _resolve_disease(override: str, suggestion: dict) -> Disease:
+    disease_id = override or suggestion.get("best_id", "")
+    disease = STATE.kb.get(disease_id)
+    if disease is None:
+        disease = STATE.kb.by_name(override or suggestion.get("best_name", ""))
+    if disease is None:
+        raise ValueError("未选择有效诊断")
+    return disease
+
+
+def _persist_orders(
+    session: AssistantSession, exams: list[str], medications: list[str]
+) -> None:
+    for name in exams:
+        STATE.hospital_store.add_order(session.session_id, "exam", name)
+    for name in medications:
+        STATE.hospital_store.add_order(session.session_id, "medication", name)
 
 
 def _confirm_assistant(body: dict) -> dict:
@@ -486,94 +617,174 @@ def _confirm_assistant(body: dict) -> dict:
             "accepted": accepted,
             "override": override,
         }
-        session.messages.append(
-            {
-                "role": "user",
-                "stage": "guide",
-                "content": f"导医确认：{department}",
-                "payload": {},
-            }
+        _append_role_message(session, "guide", "user", f"导医确认：{department}")
+        STATE.hospital_store.update_session(
+            session.session_id, department=department
         )
-        questions = _nurse_questions(session.patient, department)
+        questions = _doctor_questions(session.patient, department)
         session.pending_questions = questions
         session.question_index = 0
-        session.stage = "nurse"
-        if not questions:
-            return _advance_to_doctor(session)
-        first = questions[0]
-        session.suggestion = {
-            "question": first,
-            "question_index": 1,
-            "total": len(questions),
-        }
-        session.messages.append(
-            {
-                "role": "nurse",
-                "stage": "nurse",
-                "content": f"为了完善评估，请确认：{first}？",
-                "payload": session.suggestion,
+        session.stage = "doctor"
+        if questions:
+            first = questions[0]
+            session.suggestion = {
+                "question": first,
+                "question_index": 1,
+                "total": len(questions),
             }
+            _append_role_message(
+                session,
+                "doctor",
+                "doctor",
+                f"主诊想先确认：{first}？",
+                payload=session.suggestion,
+            )
+        else:
+            session.suggestion = _doctor_suggestion(session.patient, department)
+            _append_role_message(
+                session,
+                "doctor",
+                "doctor",
+                f"初步鉴别诊断：{session.suggestion['best_name']}。",
+                payload=session.suggestion,
+            )
+        _append_role_message(
+            session,
+            "nurse",
+            "nurse",
+            f"收到分诊：{department}。等待主诊开出检查与用药医嘱。",
         )
         return _assistant_state(session)
 
-    if stage == "nurse":
-        session.messages.append(
-            {"role": "user", "stage": "nurse", "content": "护士确认：完成问诊", "payload": {}}
-        )
-        return _advance_to_doctor(session)
-
     if stage == "doctor":
+        if bool(body.get("escalate", False)):
+            session.decisions["doctor"] = {
+                "escalated": True,
+                "reason": override or "主诊判断存在不确定性",
+            }
+            _append_role_message(
+                session,
+                "doctor",
+                "user",
+                "主诊请求主任会诊",
+                payload={"escalated": True, "reason": override},
+            )
+            session.stage = "chief"
+            doctor_suggestion = _doctor_suggestion(
+                session.patient, session.department
+            )
+            session.suggestion = {
+                "department": session.department,
+                "question_count": len(session.decisions.get("questions", [])),
+                "best_id": doctor_suggestion["best_id"],
+                "best_name": doctor_suggestion["best_name"],
+                "candidates": doctor_suggestion["candidates"],
+                "exams": doctor_suggestion["exams"],
+                "treatment": doctor_suggestion["treatment"],
+                "history": [
+                    item.get("content")
+                    for items in session.role_messages.values()
+                    for item in items
+                ][-20:],
+            }
+            _append_role_message(
+                session,
+                "chief",
+                "chief",
+                "主诊请求会诊。我已读取完整历史对话，请主任复核最终诊断、检查与用药。",
+                payload=session.suggestion,
+            )
+            return _assistant_state(session)
+
         suggestion = session.suggestion or {}
-        disease_id = override or suggestion.get("best_id", "")
-        disease = STATE.kb.get(disease_id)
-        if disease is None:
-            disease = STATE.kb.by_name(override or suggestion.get("best_name", ""))
-        if disease is None:
-            raise ValueError("未选择有效诊断")
+        disease = _resolve_disease(override, suggestion)
+        exams = _parse_list(body.get("exams"))
+        medications = _parse_list(body.get("medications"))
         session.decisions["doctor"] = {
             "disease_id": disease.id,
             "disease_name": disease.name,
             "accepted": accepted,
             "override": override,
+            "exams": exams,
+            "medications": medications,
             "reasoning": suggestion.get("reasoning", ""),
         }
-        session.messages.append(
-            {
-                "role": "user",
-                "stage": "doctor",
-                "content": f"主诊确认：{disease.name}",
-                "payload": {"disease_id": disease.id, "disease_name": disease.name},
-            }
+        _persist_orders(session, exams, medications)
+        STATE.hospital_store.update_session(
+            session.session_id,
+            department=session.department or "",
+            diagnosis_id=disease.id,
+            diagnosis_name=disease.name,
+            completed=True,
         )
-        chief = _chief_suggestion(session)
-        session.suggestion = chief
-        session.stage = "chief"
-        session.messages.append(
-            {
-                "role": "chief",
-                "stage": "chief",
-                "content": "主任医师汇总：请复核最终诊断、治疗与随访建议。",
-                "payload": chief,
-            }
+        _append_role_message(
+            session,
+            "doctor",
+            "user",
+            f"主诊确认：{disease.name}，检查 {len(exams)} 项，用药 {len(medications)} 项。",
+            payload={"disease_id": disease.id, "disease_name": disease.name},
+        )
+        session.stage = "done"
+        session.suggestion = None
+        _append_role_message(
+            session,
+            "doctor",
+            "doctor",
+            "主诊已下定论，医嘱与处方已写入医院记录系统。",
+            payload={"done": True},
         )
         return _assistant_state(session)
 
     if stage == "chief":
-        decision = session.decisions.get("doctor", {})
-        session.decisions["chief"] = {"accepted": accepted, "override": override}
+        suggestion = session.suggestion or {}
+        disease = _resolve_disease(override, suggestion)
+        exams = _parse_list(body.get("exams"))
+        medications = _parse_list(body.get("medications"))
+        session.decisions["chief"] = {
+            "disease_id": disease.id,
+            "disease_name": disease.name,
+            "accepted": accepted,
+            "override": override,
+            "exams": exams,
+            "medications": medications,
+        }
+        _persist_orders(session, exams, medications)
+        STATE.hospital_store.update_session(
+            session.session_id,
+            department=session.department or "",
+            diagnosis_id=disease.id,
+            diagnosis_name=disease.name,
+            completed=True,
+        )
         session.stage = "done"
         session.suggestion = None
-        session.messages.append(
-            {
-                "role": "chief",
-                "stage": "chief",
-                "content": f"已确认最终方案：{decision.get('disease_name', '')}。辅助诊断完成。",
-                "payload": {"done": True},
-            }
+        _append_role_message(
+            session,
+            "chief",
+            "user",
+            f"主任确认：{disease.name}，检查 {len(exams)} 项，用药 {len(medications)} 项。",
+            payload={"disease_id": disease.id, "disease_name": disease.name},
+        )
+        _append_role_message(
+            session,
+            "chief",
+            "chief",
+            "会诊结论已确认，最终医嘱与处方已写入医院记录系统。",
+            payload={"done": True},
         )
         return _assistant_state(session)
 
     raise ValueError(f"未知阶段: {stage}")
+
+
+def _save_audio(session_id: str, raw: bytes) -> dict:
+    if not session_id or not raw:
+        raise ValueError("缺少会话或音频数据")
+    AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"{session_id}_{int(time.time() * 1000)}.webm"
+    target = AUDIO_DIR / filename
+    target.write_bytes(raw)
+    return {"audio_path": f"/audio/{filename}", "saved": True}
 
 
 class DemoHandler(BaseHTTPRequestHandler):
@@ -602,10 +813,35 @@ class DemoHandler(BaseHTTPRequestHandler):
                 return
             _json_response(self, _assistant_state(session))
             return
+        if path.startswith("/audio/"):
+            target = (AUDIO_DIR / path.removeprefix("/audio/")).resolve()
+            if (
+                not str(target).startswith(str(AUDIO_DIR.resolve()))
+                or not target.is_file()
+            ):
+                _json_response(self, {"error": "not found"}, status=404)
+                return
+            body = target.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/webm")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         self._serve_static(path)
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
+        if path == "/api/assistant/audio":
+            query = parse_qs(urlparse(self.path).query)
+            session_id = query.get("session_id", [""])[0]
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            raw = self.rfile.read(length) if length else b""
+            try:
+                _json_response(self, _save_audio(session_id, raw))
+            except ValueError as exc:
+                _json_response(self, {"error": str(exc)}, status=400)
+            return
         body = _read_json(self)
         try:
             if path == "/api/episode/run":
@@ -620,8 +856,11 @@ class DemoHandler(BaseHTTPRequestHandler):
             if path == "/api/assistant/confirm":
                 _json_response(self, _confirm_assistant(body))
                 return
-            if path == "/api/assistant/answer":
-                _json_response(self, _answer_assistant(body))
+            if path == "/api/assistant/message":
+                _json_response(self, _message_assistant(body))
+                return
+            if path == "/api/assistant/answer_question":
+                _json_response(self, _answer_question_assistant(body))
                 return
         except ValueError as exc:
             _json_response(self, {"error": str(exc)}, status=400)

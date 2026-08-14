@@ -1,14 +1,16 @@
-const STAGES = ["guide", "nurse", "doctor", "chief"];
+const STAGES = ["guide", "doctor", "chief"];
+const ROLES = ["guide", "nurse", "doctor", "chief"];
 const ROLE_LABELS = {
   guide: "导医",
   nurse: "护士",
   doctor: "主诊医师",
   chief: "主任医师",
-  user: "医生",
 };
 const GENDER_LABELS = { male: "男", female: "女", any: "不限" };
 
 let session = null;
+let mediaRecorder = null;
+let mediaChunks = [];
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -38,35 +40,23 @@ async function api(path, options = {}) {
 function reset() {
   session = null;
   document.getElementById("startForm").style.display = "";
-  document.getElementById("chatLog").replaceChildren();
-  document.getElementById("actionArea").replaceChildren();
-  const patientPanel = document.getElementById("patientPanel");
-  patientPanel.textContent = "尚未开始会话";
-  patientPanel.className = "muted empty";
-  const suggestionPanel = document.getElementById("suggestionPanel");
-  suggestionPanel.textContent = "等待角色建议";
-  suggestionPanel.className = "muted empty";
+  document.getElementById("roleGrid").replaceChildren();
+  document.getElementById("patientPanel").textContent = "尚未开始会话";
+  document.getElementById("patientPanel").className = "muted empty";
+  document.getElementById("orderPanel").textContent = "尚未开单";
+  document.getElementById("orderPanel").className = "muted empty";
   document.querySelectorAll("#stageList li").forEach((item) => {
     item.classList.remove("active", "done");
   });
   document.getElementById("startError").textContent = "";
 }
 
-function render(state) {
-  renderStages(state);
-  renderPatient(state);
-  renderChat(state);
-  renderSuggestion(state);
-  renderActions(state);
-}
-
-function renderStages(state) {
-  const currentIndex = state.done ? STAGES.length : STAGES.indexOf(state.stage);
-  document.querySelectorAll("#stageList li").forEach((item) => {
-    const index = STAGES.indexOf(item.dataset.stage);
-    item.classList.toggle("active", index === currentIndex && !state.done);
-    item.classList.toggle("done", state.done || index < currentIndex);
-  });
+function speak(text) {
+  if (!("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "zh-CN";
+  window.speechSynthesis.speak(utter);
 }
 
 function tagList(items) {
@@ -79,20 +69,37 @@ function tagList(items) {
   return wrap;
 }
 
+function render(state) {
+  session = state;
+  renderStages(state);
+  renderPatient(state);
+  renderOrders(state);
+  renderRoleGrid(state);
+}
+
+function renderStages(state) {
+  const currentIndex = state.done ? STAGES.length : STAGES.indexOf(state.stage);
+  document.querySelectorAll("#stageList li").forEach((item) => {
+    const index = STAGES.indexOf(item.dataset.stage);
+    item.classList.toggle("active", index === currentIndex && !state.done);
+    item.classList.toggle("done", state.done || index < currentIndex);
+  });
+}
+
 function renderPatient(state) {
   const panel = document.getElementById("patientPanel");
   panel.replaceChildren();
   const patient = state.patient;
-  const title = el("p", "patient-title", `${patient.name || "患者"} · ${patient.id}`);
+  panel.appendChild(
+    el("p", "patient-title", `${patient.name || "患者"} · ${patient.id}`)
+  );
   const meta = el(
     "p",
     "patient-line",
     `${GENDER_LABELS[patient.gender] || "不限"} / ${patient.age} 岁`
   );
-  if (state.department) {
-    meta.textContent += ` / ${state.department}`;
-  }
-  panel.append(title, meta);
+  if (state.department) meta.textContent += ` / ${state.department}`;
+  panel.appendChild(meta);
   panel.appendChild(el("div", "suggestion-section"));
   panel.lastElementChild.appendChild(el("h3", "", "症状"));
   panel.lastElementChild.appendChild(tagList(patient.symptoms));
@@ -108,258 +115,410 @@ function renderPatient(state) {
   }
 }
 
-function renderChat(state) {
-  const log = document.getElementById("chatLog");
-  log.replaceChildren();
-  state.messages.forEach((message) => {
-    const isUser = message.role === "user";
-    const bubble = el("div", isUser ? "msg msg-user" : "msg msg-agent");
-    if (!isUser) {
-      bubble.appendChild(
-        el("span", "msg-role", ROLE_LABELS[message.role] || message.role)
-      );
-    }
-    bubble.appendChild(document.createTextNode(message.content));
-    log.appendChild(bubble);
-  });
-  log.scrollTop = log.scrollHeight;
+function renderOrders(state) {
+  const panel = document.getElementById("orderPanel");
+  panel.replaceChildren();
+  if (!state.orders || !state.orders.length) {
+    panel.appendChild(el("span", "muted", "尚未开单"));
+    return;
+  }
+  const exams = state.orders.filter((item) => item.kind === "exam");
+  const medications = state.orders.filter((item) => item.kind === "medication");
+  if (exams.length) {
+    panel.appendChild(el("div", "suggestion-section"));
+    panel.lastElementChild.appendChild(el("h3", "", "检查医嘱"));
+    panel.lastElementChild.appendChild(
+      tagList(exams.map((item) => item.name))
+    );
+  }
+  if (medications.length) {
+    panel.appendChild(el("div", "suggestion-section"));
+    panel.lastElementChild.appendChild(el("h3", "", "用药医嘱"));
+    panel.lastElementChild.appendChild(
+      tagList(medications.map((item) => item.name))
+    );
+  }
 }
 
-function section(title) {
-  const wrap = el("div", "suggestion-section");
-  wrap.appendChild(el("h3", "", title));
+function roleBadge(role, state) {
+  if (role === "guide") return state.department ? "分诊已确认" : "等待确认";
+  if (role === "nurse") return state.department ? "配合开单" : "待分诊";
+  if (role === "doctor") {
+    if (state.done) return "已定论";
+    return state.stage === "doctor" ? "主诊中" : "待分诊";
+  }
+  if (role === "chief") {
+    if (state.done) return "已复核";
+    return state.stage === "chief" ? "会诊中" : "待命";
+  }
+  return "";
+}
+
+function messageBubble(message, role) {
+  const isAgent = message.sender !== "user";
+  const bubble = el("div", isAgent ? "msg msg-agent" : "msg msg-user");
+  bubble.appendChild(
+    el("span", "msg-role", isAgent ? ROLE_LABELS[role] : "医生")
+  );
+  bubble.appendChild(document.createTextNode(message.content));
+  if (message.audio_path) {
+    const audio = document.createElement("audio");
+    audio.controls = true;
+    audio.preload = "metadata";
+    audio.src = message.audio_path;
+    bubble.appendChild(audio);
+  }
+  if (isAgent) {
+    const actions = el("div", "msg-actions");
+    const readBtn = el("button", "btn ghost", "朗读");
+    readBtn.type = "button";
+    readBtn.addEventListener("click", () => speak(message.content));
+    actions.appendChild(readBtn);
+    bubble.appendChild(actions);
+  }
+  return bubble;
+}
+
+function roleWindow(role, state) {
+  const win = el("section", "role-window");
+  win.dataset.role = role;
+  const head = el("div", "role-head");
+  head.appendChild(el("h3", "", ROLE_LABELS[role]));
+  const badge = el("span", "role-badge", roleBadge(role, state));
+  if (
+    (role === "guide" && state.stage === "guide") ||
+    (role === "doctor" && state.stage === "doctor") ||
+    (role === "chief" && state.stage === "chief")
+  ) {
+    badge.classList.add("active-badge");
+  }
+  head.appendChild(badge);
+
+  const log = el("div", "role-log");
+  (state.role_messages[role] || []).forEach((message) => {
+    log.appendChild(messageBubble(message, role));
+  });
+  log.scrollTop = log.scrollHeight;
+
+  const inputRow = el("div", "role-input");
+  const textInput = el("input", "", "");
+  textInput.type = "text";
+  textInput.placeholder = `与${ROLE_LABELS[role]}讨论...`;
+  const sendBtn = el("button", "btn primary", "发送");
+  sendBtn.type = "button";
+  sendBtn.addEventListener("click", async () => {
+    const content = textInput.value.trim();
+    if (!content) return;
+    sendBtn.disabled = true;
+    try {
+      const next = await api("/api/assistant/message", {
+        method: "POST",
+        body: { session_id: state.session_id, role, content },
+      });
+      render(next);
+    } catch (error) {
+      actions.appendChild(el("div", "form-error", error.message));
+    } finally {
+      sendBtn.disabled = false;
+    }
+  });
+  textInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") sendBtn.click();
+  });
+  const recordBtn = el("button", "btn ghost", "录音");
+  recordBtn.type = "button";
+  recordBtn.title = "录制语音消息并保存";
+  recordBtn.addEventListener("click", () =>
+    toggleRecording(role, recordBtn, state.session_id)
+  );
+  inputRow.append(textInput, sendBtn, recordBtn);
+
+  const actions = el("div", "role-actions");
+  renderRoleActions(actions, role, state);
+
+  win.append(head, log, inputRow, actions);
+  return win;
+}
+
+function renderRoleGrid(state) {
+  const grid = document.getElementById("roleGrid");
+  grid.replaceChildren();
+  ROLES.forEach((role) => grid.appendChild(roleWindow(role, state)));
+}
+
+function renderRoleActions(container, role, state) {
+  container.replaceChildren();
+  const row = el("div", "action-row");
+
+  if (role === "guide") {
+    if (state.stage === "guide") {
+      const select = el("select", "", "");
+      (state.suggestion.departments || []).forEach((item) => {
+        const option = el("option", "", item.department);
+        option.value = item.department;
+        if (item.department === state.suggestion.department) option.selected = true;
+        select.appendChild(option);
+      });
+      const confirm = el("button", "btn primary", "确认分诊");
+      confirm.type = "button";
+      confirm.addEventListener("click", async () => {
+        confirm.disabled = true;
+        try {
+          const next = await api("/api/assistant/confirm", {
+            method: "POST",
+            body: {
+              session_id: state.session_id,
+              stage: "guide",
+              accepted: true,
+              override: select.value,
+            },
+          });
+          render(next);
+        } catch (error) {
+          container.appendChild(el("div", "form-error", error.message));
+        } finally {
+          confirm.disabled = false;
+        }
+      });
+      row.append(select, confirm);
+    } else {
+      row.appendChild(el("p", "action-note", `分诊已确认：${state.department}`));
+    }
+  }
+
+  if (role === "nurse") {
+    row.appendChild(
+      el(
+        "p",
+        "action-note",
+        state.department
+          ? "护理通道就绪：检查与用药医嘱会在这里执行准备。"
+          : "等待导医确认分诊。"
+      )
+    );
+  }
+
+  if (role === "doctor") {
+    if (state.stage !== "doctor") {
+      row.appendChild(
+        el(
+          "p",
+          "action-note",
+          state.done ? "主诊已完成。" : "等待分诊确认后进入主诊。"
+        )
+      );
+    } else if (state.suggestion && state.suggestion.question) {
+      row.appendChild(
+        el("p", "action-note", `主诊追问 ${state.suggestion.question_index}/${state.suggestion.total}`)
+      );
+      const question = el("div", "action-question", state.suggestion.question);
+      const yes = el("button", "btn primary", "有");
+      const no = el("button", "btn ghost", "没有");
+      const skip = el("button", "btn ghost", "跳过追问");
+      [yes, no, skip].forEach((button) => {
+        button.type = "button";
+        button.addEventListener("click", async () => {
+          setButtonsDisabled([yes, no, skip], true);
+          try {
+            let next;
+            if (button === skip) {
+              next = await api("/api/assistant/confirm", {
+                method: "POST",
+                body: { session_id: state.session_id, stage: "doctor", accepted: true },
+              });
+            } else {
+              next = await api("/api/assistant/answer_question", {
+                method: "POST",
+                body: {
+                  session_id: state.session_id,
+                  symptom: state.suggestion.question,
+                  present: button === yes,
+                },
+              });
+            }
+            render(next);
+          } catch (error) {
+            container.appendChild(el("div", "form-error", error.message));
+          }
+        });
+      });
+      row.append(question, yes, no, skip);
+    } else if (state.suggestion && state.suggestion.candidates) {
+      appendOrderActions(container, state, "doctor");
+    }
+  }
+
+  if (role === "chief") {
+    if (state.stage === "chief") {
+      const history = state.suggestion.history || [];
+      if (history.length) {
+        const list = el("ol", "history-list");
+        history.forEach((item) => list.appendChild(el("li", "", item)));
+        container.appendChild(list);
+      }
+      appendOrderActions(container, state, "chief");
+    } else {
+      row.appendChild(
+        el(
+          "p",
+          "action-note",
+          state.done ? "会诊已结束。" : "主诊未请求会诊，主任处于待命状态。"
+        )
+      );
+    }
+  }
+
+  if (row.childNodes.length) container.appendChild(row);
+}
+
+function setButtonsDisabled(buttons, disabled) {
+  buttons.forEach((button) => {
+    button.disabled = disabled;
+  });
+}
+
+function checkList(items, checked) {
+  const wrap = el("div", "check-grid");
+  (items || []).forEach((name) => {
+    const label = el("label", "");
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.value = name;
+    box.checked = Boolean(checked && checked.includes(name));
+    label.append(box, document.createTextNode(name));
+    wrap.appendChild(label);
+  });
   return wrap;
 }
 
-function renderSuggestion(state) {
-  const panel = document.getElementById("suggestionPanel");
-  panel.replaceChildren();
+function appendOrderActions(container, state, stage) {
   const suggestion = state.suggestion;
-  if (state.done) {
-    const last = state.messages[state.messages.length - 1];
-    panel.appendChild(section("结论"));
-    panel.lastElementChild.appendChild(el("p", "suggestion-text", last ? last.content : "已完成"));
-    return;
-  }
-  if (!suggestion) {
-    panel.appendChild(el("span", "muted", "等待角色建议"));
-    return;
-  }
-
-  if (state.stage === "guide") {
-    const head = section("导医建议");
-    head.appendChild(
-      el("p", "suggestion-text", `建议科室：${suggestion.department}（${suggestion.reason}）`)
-    );
-    panel.appendChild(head);
-    const ranks = section("科室匹配");
-    const maxMatched = Math.max(1, ...suggestion.departments.map((item) => item.matched));
-    suggestion.departments.slice(0, 5).forEach((item) => {
-      const row = el("div", "rank-row");
-      row.appendChild(el("span", "", item.department));
-      row.appendChild(el("span", "rank-score", `匹配 ${item.matched}`));
-      const track = el("div", "score-track");
-      const fill = el("div", "score-fill");
-      fill.style.width = `${Math.round((item.matched / maxMatched) * 100)}%`;
-      track.appendChild(fill);
-      row.appendChild(track);
-      ranks.appendChild(row);
-    });
-    panel.appendChild(ranks);
-    return;
-  }
-
-  if (state.stage === "nurse") {
-    const head = section("护士追问");
-    head.appendChild(
-      el(
-        "p",
-        "suggestion-text",
-        `问题 ${suggestion.question_index}/${suggestion.total}：${suggestion.question}`
-      )
-    );
-    panel.appendChild(head);
-    return;
-  }
-
-  if (state.stage === "doctor") {
-    const head = section("鉴别诊断");
-    head.appendChild(el("p", "suggestion-text", suggestion.reasoning));
-    panel.appendChild(head);
-    const ranks = section("候选排序");
-    const maxScore = Math.max(
-      0.0001,
-      ...suggestion.candidates.map((item) => item.score)
-    );
-    suggestion.candidates.forEach((item) => {
-      const row = el("div", "rank-row");
-      row.appendChild(el("span", "", item.disease_name));
-      row.appendChild(el("span", "rank-score", item.score.toFixed(2)));
-      const track = el("div", "score-track");
-      const fill = el("div", "score-fill");
-      fill.style.width = `${Math.round((item.score / maxScore) * 100)}%`;
-      track.appendChild(fill);
-      row.appendChild(track);
-      ranks.appendChild(row);
-    });
-    panel.appendChild(ranks);
-    if (suggestion.exams.length) {
-      panel.appendChild(section("建议检查"));
-      panel.lastElementChild.appendChild(tagList(suggestion.exams));
-    }
-    if (suggestion.treatment.length) {
-      panel.appendChild(section("治疗参考"));
-      panel.lastElementChild.appendChild(tagList(suggestion.treatment));
-    }
-    const memory = [];
-    suggestion.retrieved_cases.forEach((item) =>
-      memory.push(`${item.diagnosis} (${item.score})`)
-    );
-    suggestion.retrieved_rules.forEach((item) => memory.push(item.rule));
-    panel.appendChild(section("检索记忆"));
-    panel.lastElementChild.appendChild(tagList(memory));
-    return;
-  }
-
-  if (state.stage === "chief") {
-    panel.appendChild(section("主任复核"));
-    panel.lastElementChild.appendChild(
-      el("p", "suggestion-text", suggestion.summary)
-    );
-    panel.appendChild(section("最终诊断"));
-    panel.lastElementChild.appendChild(
-      el("p", "suggestion-text", suggestion.diagnosis_name || "待定")
-    );
-    if (suggestion.treatment.length) {
-      panel.appendChild(section("治疗方案"));
-      panel.lastElementChild.appendChild(tagList(suggestion.treatment));
-    }
-    panel.appendChild(section("随访建议"));
-    panel.lastElementChild.appendChild(tagList(suggestion.follow_up));
-  }
-}
-
-function setBusy(buttons, busy) {
-  buttons.forEach((button) => {
-    button.disabled = busy;
+  const select = el("select", "", "");
+  (suggestion.candidates || []).forEach((item) => {
+    const option = el("option", "", `${item.disease_name} (${item.score.toFixed(2)})`);
+    option.value = item.disease_id;
+    if (item.disease_id === suggestion.best_id) option.selected = true;
+    select.appendChild(option);
   });
-}
 
-async function runAction(promise, buttons) {
-  setBusy(buttons, true);
-  try {
-    session = await promise;
-    render(session);
-  } catch (error) {
-    const area = document.getElementById("actionArea");
-    area.appendChild(el("div", "form-error", error.message));
-  } finally {
-    setBusy(buttons, false);
-  }
-}
+  const examWrap = el("div", "suggestion-section");
+  examWrap.appendChild(el("h3", "", "建议检查（可调整）"));
+  const exams = checkList(suggestion.exams || []);
+  examWrap.appendChild(exams);
 
-function renderActions(state) {
-  const area = document.getElementById("actionArea");
-  area.replaceChildren();
-  if (state.done) return;
+  const medWrap = el("div", "suggestion-section");
+  medWrap.appendChild(el("h3", "", "用药参考（可调整）"));
+  const medications = checkList(suggestion.treatment || []);
+  medWrap.appendChild(medications);
 
   const row = el("div", "action-row");
-  if (state.stage === "guide") {
-    const select = el("select", "", "");
-    (state.suggestion.departments || []).forEach((item) => {
-      const option = el("option", "", item.department);
-      option.value = item.department;
-      if (item.department === state.suggestion.department) option.selected = true;
-      select.appendChild(option);
-    });
-    const confirm = el("button", "btn primary", "确认分诊");
-    confirm.type = "button";
-    confirm.addEventListener("click", () => {
-      runAction(
-        api("/api/assistant/confirm", {
-          method: "POST",
-          body: { session_id: state.session_id, stage: "guide", accepted: true, override: select.value },
-        }),
-        [confirm]
-      );
-    });
-    row.append(select, confirm);
-  }
+  row.appendChild(select);
+  const confirmLabel =
+    stage === "doctor" ? "确认诊断并开单" : "主任确认最终方案";
+  const confirm = el("button", "btn primary", confirmLabel);
+  confirm.type = "button";
+  confirm.addEventListener("click", async () => {
+    const body = {
+      session_id: state.session_id,
+      stage,
+      accepted: true,
+      override: select.value,
+      exams: Array.from(exams.querySelectorAll(":checked")).map((box) => box.value),
+      medications: Array.from(medications.querySelectorAll(":checked")).map(
+        (box) => box.value
+      ),
+    };
+    confirm.disabled = true;
+    try {
+      const next = await api("/api/assistant/confirm", {
+        method: "POST",
+        body,
+      });
+      render(next);
+    } catch (error) {
+      container.appendChild(el("div", "form-error", error.message));
+    } finally {
+      confirm.disabled = false;
+    }
+  });
+  row.appendChild(confirm);
 
-  if (state.stage === "nurse") {
-    const question = state.suggestion.question;
-    row.appendChild(el("div", "action-question", `${question}？`));
-    const yes = el("button", "btn primary", "有");
-    const no = el("button", "btn ghost", "没有");
-    const skip = el("button", "btn ghost", "跳过追问");
-    yes.type = no.type = skip.type = "button";
-    yes.addEventListener("click", () => {
-      runAction(
-        api("/api/assistant/answer", {
+  container.append(examWrap, medWrap, row);
+  if (stage === "doctor") {
+    const escalate = el("button", "btn ghost", "不确定，请求主任会诊");
+    escalate.type = "button";
+    escalate.addEventListener("click", async () => {
+      escalate.disabled = true;
+      try {
+        const next = await api("/api/assistant/confirm", {
           method: "POST",
-          body: { session_id: state.session_id, symptom: question, present: true },
-        }),
-        [yes, no, skip]
-      );
+          body: {
+            session_id: state.session_id,
+            stage: "doctor",
+            escalate: true,
+          },
+        });
+        render(next);
+      } catch (error) {
+        container.appendChild(el("div", "form-error", error.message));
+      } finally {
+        escalate.disabled = false;
+      }
     });
-    no.addEventListener("click", () => {
-      runAction(
-        api("/api/assistant/answer", {
-          method: "POST",
-          body: { session_id: state.session_id, symptom: question, present: false },
-        }),
-        [yes, no, skip]
-      );
-    });
-    skip.addEventListener("click", () => {
-      runAction(
-        api("/api/assistant/confirm", {
-          method: "POST",
-          body: { session_id: state.session_id, stage: "nurse", accepted: true },
-        }),
-        [yes, no, skip]
-      );
-    });
-    row.append(yes, no, skip);
+    container.appendChild(escalate);
   }
+}
 
-  if (state.stage === "doctor") {
-    const select = el("select", "", "");
-    (state.suggestion.candidates || []).forEach((item) => {
-      const option = el("option", "", `${item.disease_name} (${item.score.toFixed(2)})`);
-      option.value = item.disease_id;
-      if (item.disease_id === state.suggestion.best_id) option.selected = true;
-      select.appendChild(option);
-    });
-    const confirm = el("button", "btn primary", "确认诊断");
-    confirm.type = "button";
-    confirm.addEventListener("click", () => {
-      runAction(
-        api("/api/assistant/confirm", {
-          method: "POST",
-          body: { session_id: state.session_id, stage: "doctor", accepted: true, override: select.value },
-        }),
-        [confirm]
-      );
-    });
-    row.append(select, confirm);
+async function toggleRecording(role, button, sessionId) {
+  if (!navigator.mediaDevices || !window.MediaRecorder) {
+    button.textContent = "不支持";
+    return;
   }
-
-  if (state.stage === "chief") {
-    const confirm = el("button", "btn primary", "确认最终方案");
-    confirm.type = "button";
-    confirm.addEventListener("click", () => {
-      runAction(
-        api("/api/assistant/confirm", {
-          method: "POST",
-          body: { session_id: state.session_id, stage: "chief", accepted: true },
-        }),
-        [confirm]
-      );
-    });
-    row.appendChild(confirm);
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    return;
   }
-  area.appendChild(row);
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size) mediaChunks.push(event.data);
+    };
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach((track) => track.stop());
+      button.textContent = "录音";
+      if (!mediaChunks.length) return;
+      const blob = new Blob(mediaChunks, { type: "audio/webm" });
+      try {
+        const response = await fetch(
+          `/api/assistant/audio?session_id=${encodeURIComponent(sessionId)}`,
+          { method: "POST", body: blob }
+        );
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "音频保存失败");
+        const next = await api("/api/assistant/message", {
+          method: "POST",
+          body: {
+            session_id: sessionId,
+            role,
+            content: "（语音消息）",
+            audio_path: data.audio_path,
+          },
+        });
+        render(next);
+      } catch (error) {
+        const area = document.querySelector(
+          `.role-window [data-role="${role}"] .role-actions`
+        );
+        if (area) area.appendChild(el("div", "form-error", error.message));
+      }
+    };
+    mediaRecorder.start();
+    button.textContent = "停止";
+  } catch (_) {
+    button.textContent = "无权限";
+  }
 }
 
 document.getElementById("startForm").addEventListener("submit", async (event) => {
@@ -380,7 +539,6 @@ document.getElementById("startForm").addEventListener("submit", async (event) =>
   startBtn.disabled = true;
   try {
     const state = await api("/api/assistant/start", { method: "POST", body });
-    session = state;
     document.getElementById("startForm").style.display = "none";
     render(state);
   } catch (error) {
@@ -391,4 +549,30 @@ document.getElementById("startForm").addEventListener("submit", async (event) =>
 });
 
 document.getElementById("newSessionBtn").addEventListener("click", reset);
+
+document.getElementById("dictateBtn").addEventListener("click", () => {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    document.getElementById("startError").textContent =
+      "当前浏览器不支持语音识别";
+    return;
+  }
+  const recognition = new SpeechRecognition();
+  recognition.lang = "zh-CN";
+  recognition.interimResults = false;
+  recognition.onresult = (event) => {
+    const text = Array.from(event.results)
+      .map((result) => result[0].transcript)
+      .join("");
+    const input = document.getElementById("symptomsInput");
+    input.value = input.value ? `${input.value},${text}` : text;
+  };
+  recognition.onerror = () => {
+    document.getElementById("startError").textContent =
+      "语音识别失败，请重试";
+  };
+  recognition.start();
+});
+
 reset();

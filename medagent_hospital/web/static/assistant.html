@@ -22,19 +22,18 @@
 
   <main class="assistant-main">
     <aside class="panel rail">
-      <h2>就诊流程</h2>
+      <h2>流程</h2>
       <ol id="stageList" class="stage-list">
         <li data-stage="guide"><span class="stage-index">1</span><span>导医分诊</span></li>
-        <li data-stage="nurse"><span class="stage-index">2</span><span>护士问诊</span></li>
-        <li data-stage="doctor"><span class="stage-index">3</span><span>主诊医师</span></li>
-        <li data-stage="chief"><span class="stage-index">4</span><span>主任复核</span></li>
+        <li data-stage="doctor"><span class="stage-index">2</span><span>主诊问诊/开单</span></li>
+        <li data-stage="chief"><span class="stage-index">3</span><span>主任复核</span></li>
       </ol>
-      <div class="rail-note muted">每位角色只看到自己需要的决策信息，最终由医生确认。</div>
+      <div class="rail-note muted">导医、护士、主诊、主任各有独立对话窗口。Agent 只提建议，医生可讨论、反驳后再确认。</div>
     </aside>
 
-    <section class="panel chat-panel">
+    <section class="main-col">
       <div class="chat-head">
-        <h2>会话</h2>
+        <h2>角色对话</h2>
         <button id="newSessionBtn" class="btn ghost" type="button">新建会话</button>
       </div>
 
@@ -50,8 +49,11 @@
           <label>年龄
             <input id="ageInput" type="number" min="0" max="120" value="45">
           </label>
-          <label class="wide">症状（逗号分隔）
-            <textarea id="symptomsInput" rows="2" placeholder="发热,咳嗽,胸痛"></textarea>
+          <label class="wide">症状（逗号分隔，支持语音）
+            <div class="voice-row">
+              <textarea id="symptomsInput" rows="2" placeholder="发热,咳嗽,胸痛"></textarea>
+              <button id="dictateBtn" class="btn ghost" type="button">语音转文字</button>
+            </div>
           </label>
           <label class="wide">既往史
             <input id="historyInput" type="text" placeholder="高血压,糖尿病">
@@ -66,15 +68,14 @@
         </div>
       </form>
 
-      <div id="chatLog" class="chat-log"></div>
-      <div id="actionArea" class="action-area"></div>
+      <div id="roleGrid" class="role-grid"></div>
     </section>
 
     <aside class="panel side">
       <h2>患者信息</h2>
       <div id="patientPanel" class="muted empty">尚未开始会话</div>
-      <h2>当前建议</h2>
-      <div id="suggestionPanel" class="muted empty">等待角色建议</div>
+      <h2>医嘱记录</h2>
+      <div id="orderPanel" class="muted empty">尚未开单</div>
     </aside>
   </main>
 
