@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MedAgent-Hospital · 患者入口</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/patient.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <span>MedAgent-Hospital</span>
+    </div>
+    <nav class="tabs">
+      <a class="tab" href="/">医院模拟</a>
+      <a class="tab" href="/assistant">辅助诊断</a>
+      <a class="tab active" href="/patient">患者入口</a>
+    </nav>
+    <div class="status">
+      <label class="model-label">推理模式
+        <select id="patientModelSelect" aria-label="推理模式">
+          <option value="rule">规则模式</option>
+          <option value="llm">DeepSeek</option>
+        </select>
+      </label>
+      <span class="dot"></span><span>患者自助问诊</span>
+    </div>
+  </header>
+
+  <main class="patient-main">
+    <section class="patient-chat">
+      <div class="chat-head">
+        <h2>患者问诊</h2>
+        <button id="newSessionBtn" class="btn ghost" type="button">新建会话</button>
+      </div>
+
+      <form id="startForm" class="start-form">
+        <div class="form-grid">
+          <label>性别
+            <select id="genderInput">
+              <option value="any">不限</option>
+              <option value="male">男</option>
+              <option value="female">女</option>
+            </select>
+          </label>
+          <label>年龄
+            <input id="ageInput" type="number" min="0" max="120" value="45">
+          </label>
+        </div>
+        <div class="form-actions">
+          <button id="startBtn" class="btn primary" type="submit">开始问诊</button>
+          <span id="startError" class="form-error"></span>
+        </div>
+      </form>
+
+      <div id="agentBadge" class="agent-badge">当前接诊：导医</div>
+      <div id="chatLog" class="chat-log"></div>
+      <div class="input-row">
+        <input id="chatInput" type="text" placeholder="输入您的回答...">
+        <button id="sendBtn" class="btn primary" type="button">发送</button>
+        <button id="dictateBtn" class="btn ghost" type="button">语音转文字</button>
+      </div>
+    </section>
+
+    <aside class="panel side">
+      <h2>患者信息</h2>
+      <div id="patientPanel" class="muted empty">尚未开始问诊</div>
+      <h2>转诊记录</h2>
+      <div id="handoffPanel" class="muted empty">暂无</div>
+      <h2>医嘱记录</h2>
+      <div id="orderPanel" class="muted empty">尚未开单</div>
+    </aside>
+  </main>
+
+  <script src="/patient.js"></script>
+</body>
+</html>

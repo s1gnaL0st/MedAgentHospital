@@ -51,6 +51,7 @@ class DemoState:
         self.guide_case_base = MedicalCaseBase()
         self.guide_experience_base = ExperienceBase()
         self.assistant_sessions: dict[str, "AssistantSession"] = {}
+        self.patient_sessions: dict[str, "PatientSession"] = {}
         self.hospital_store = HospitalRecordStore()
         self.lock = threading.Lock()
 
@@ -831,6 +832,324 @@ def _confirm_assistant(body: dict) -> dict:
     raise ValueError(f"未知阶段: {stage}")
 
 
+PATIENT_YES_KEYWORDS = ("是", "有", "同意", "可以", "好的", "好", "确认", "确定", "嗯")
+PATIENT_ESCALATE_KEYWORDS = ("会诊", "主任", "不确定", "再看看", "没把握")
+
+
+@dataclass
+class PatientSession:
+    session_id: str
+    patient: PatientRecord
+    reasoner: str = "rule"
+    stage: str = "triage"
+    current_agent: str = "guide"
+    department: str | None = None
+    messages: list[dict] = field(default_factory=list)
+    handoffs: list[dict] = field(default_factory=list)
+    pending_questions: list[str] = field(default_factory=list)
+    question_index: int = 0
+    suggestion: dict | None = None
+    decisions: dict = field(default_factory=dict)
+    created_at: float = field(default_factory=time.time)
+
+
+def _patient_append(
+    session: PatientSession,
+    sender: str,
+    content: str,
+    payload: dict | None = None,
+) -> None:
+    message: dict = {"sender": sender, "content": content, "payload": payload or {}}
+    session.messages.append(message)
+    STATE.hospital_store.add_message(session.session_id, sender, "patient", content)
+
+
+def _patient_state(session: PatientSession) -> dict:
+    return {
+        "session_id": session.session_id,
+        "stage": session.stage,
+        "current_agent": session.current_agent,
+        "done": session.stage == "done",
+        "reasoner": session.reasoner,
+        "patient": {
+            "id": session.patient.patient_id,
+            "name": session.patient.name,
+            "gender": session.patient.gender,
+            "age": session.patient.age,
+            "symptoms": list(session.patient.symptoms),
+            "medical_history": list(session.patient.medical_history),
+            "risk_factors": list(session.patient.risk_factors),
+        },
+        "department": session.department,
+        "messages": session.messages,
+        "handoffs": session.handoffs,
+        "suggestion": session.suggestion,
+        "orders": STATE.hospital_store.list_orders(session.session_id),
+        "reports": STATE.hospital_store.list_reports(session.session_id),
+    }
+
+
+def _get_patient_session(body: dict) -> PatientSession:
+    session = STATE.patient_sessions.get(str(body.get("session_id", "")))
+    if session is None:
+        raise ValueError("患者会话不存在")
+    return session
+
+
+def _extract_patient_symptoms(text: str) -> list[str]:
+    symptoms = _parse_list(text)
+    known: set[str] = set()
+    for disease in STATE.kb.diseases:
+        known.update(disease.symptoms)
+    for symptom in known:
+        if symptom in text and symptom not in symptoms:
+            symptoms.append(symptom)
+    return symptoms
+
+
+def _start_patient(body: dict) -> dict:
+    patient = _assistant_patient(body)
+    reasoner = str(body.get("reasoner", "rule")).strip().lower()
+    if reasoner not in {"rule", "llm"}:
+        raise ValueError("无效推理模式")
+    session = PatientSession(
+        session_id=uuid.uuid4().hex[:12],
+        patient=patient,
+        reasoner=reasoner,
+    )
+    patient_view = {
+        "id": patient.patient_id,
+        "name": patient.name,
+        "gender": patient.gender,
+        "age": patient.age,
+        "symptoms": list(patient.symptoms),
+        "medical_history": list(patient.medical_history),
+        "risk_factors": list(patient.risk_factors),
+    }
+    STATE.hospital_store.create_session(session.session_id, patient_view)
+    _patient_append(
+        session,
+        "guide",
+        "您好，我是导医。请先告诉我您主要哪里不舒服？",
+    )
+    with STATE.lock:
+        STATE.patient_sessions[session.session_id] = session
+    return _patient_state(session)
+
+
+def _patient_doctor_suggestion(session: PatientSession) -> None:
+    suggestion = _doctor_suggestion(
+        session.patient, session.department, session.reasoner
+    )
+    session.suggestion = suggestion
+    _patient_append(
+        session,
+        "doctor",
+        (
+            f"初步诊断建议：{suggestion['best_name']}。"
+            f"建议检查：{'、'.join(suggestion['exams'][:4]) or '暂不需要'}。"
+            f"用药参考：{'、'.join(suggestion['treatment'][:4]) or '暂无'}。"
+            "回复“确认”结诊，回复“请主任会诊”可升级。"
+        ),
+        payload=suggestion,
+    )
+
+
+def _handoff_patient_to_doctor(session: PatientSession) -> dict:
+    department = (
+        (session.suggestion or {}).get("department")
+        or session.department
+        or STATE.kb.departments[0]
+    )
+    session.department = department
+    session.decisions["guide"] = {"department": department, "confirmed": True}
+    session.handoffs.append({"from": "guide", "to": "doctor", "reason": "分诊确认"})
+    _patient_append(
+        session,
+        "system",
+        f"系统：已转接主诊医生（{department}）。",
+    )
+    session.current_agent = "doctor"
+    session.stage = "doctor"
+    questions = _doctor_questions(session.patient, department)
+    session.pending_questions = questions
+    session.question_index = 0
+    if questions:
+        first = questions[0]
+        session.suggestion = {
+            "question": first,
+            "question_index": 1,
+            "total": len(questions),
+        }
+        _patient_append(
+            session,
+            "doctor",
+            f"我是主诊医生。为辅助判断，请先告诉我：{first}？",
+        )
+    else:
+        _patient_doctor_suggestion(session)
+    return _patient_state(session)
+
+
+def _triage_turn(session: PatientSession, content: str) -> dict:
+    for symptom in _extract_patient_symptoms(content):
+        if symptom not in session.patient.symptoms:
+            session.patient.symptoms.append(symptom)
+    if not session.patient.symptoms:
+        _patient_append(
+            session,
+            "guide",
+            "我还没听清症状，能再描述一下吗？比如发热、咳嗽、胸痛。",
+        )
+        return _patient_state(session)
+    suggestion = _triage_suggestion(session.patient, session.reasoner)
+    session.suggestion = suggestion
+    if session.decisions.get("triage_asked") and any(
+        word in content for word in PATIENT_YES_KEYWORDS
+    ):
+        return _handoff_patient_to_doctor(session)
+    session.decisions["triage_asked"] = True
+    _patient_append(
+        session,
+        "guide",
+        (
+            f"根据您的描述，建议先前往「{suggestion['department']}」。"
+            "是否确认？也可以继续补充症状。"
+        ),
+        payload=suggestion,
+    )
+    return _patient_state(session)
+
+
+def _handoff_patient_to_chief(session: PatientSession) -> dict:
+    session.handoffs.append(
+        {"from": "doctor", "to": "chief", "reason": "主诊不确定，申请会诊"}
+    )
+    _patient_append(
+        session,
+        "system",
+        "系统：已转接主任医师进行会诊。",
+    )
+    session.current_agent = "chief"
+    session.stage = "chief"
+    doctor_suggestion = _doctor_suggestion(
+        session.patient, session.department, session.reasoner
+    )
+    session.suggestion = {
+        "best_id": doctor_suggestion["best_id"],
+        "best_name": doctor_suggestion["best_name"],
+        "candidates": doctor_suggestion["candidates"],
+        "exams": doctor_suggestion["exams"],
+        "treatment": doctor_suggestion["treatment"],
+        "history": [message.get("content") for message in session.messages[-12:]],
+    }
+    _patient_append(
+        session,
+        "chief",
+        (
+            f"我是主任医师，已查看完整就诊对话。最终建议："
+            f"{doctor_suggestion['best_name']}。请回复“确认”完成结诊。"
+        ),
+        payload=session.suggestion,
+    )
+    return _patient_state(session)
+
+
+def _finalize_patient(session: PatientSession, agent: str) -> dict:
+    suggestion = session.suggestion or {}
+    disease = _resolve_disease("", suggestion)
+    exams = suggestion.get("exams", [])[:4]
+    medications = suggestion.get("treatment", [])[:4]
+    _persist_orders(session, exams, medications)
+    STATE.hospital_store.update_session(
+        session.session_id,
+        department=session.department or "",
+        diagnosis_id=disease.id,
+        diagnosis_name=disease.name,
+        completed=True,
+    )
+    session.stage = "done"
+    session.decisions["final"] = {
+        "disease_id": disease.id,
+        "disease_name": disease.name,
+    }
+    _patient_append(
+        session,
+        agent,
+        (
+            f"就诊完成。诊断：{disease.name}；检查与用药医嘱、影像报告"
+            "已保存到医院记录系统。祝您早日康复。"
+        ),
+        payload={"disease_id": disease.id, "disease_name": disease.name},
+    )
+    return _patient_state(session)
+
+
+def _doctor_turn(session: PatientSession, content: str) -> dict:
+    if session.suggestion and session.suggestion.get("question"):
+        present = any(word in content for word in PATIENT_YES_KEYWORDS)
+        symptom = session.suggestion["question"]
+        if present and symptom not in session.patient.symptoms:
+            session.patient.symptoms.append(symptom)
+        session.decisions.setdefault("questions", []).append(
+            {"symptom": symptom, "present": present}
+        )
+        session.question_index += 1
+        if session.question_index < len(session.pending_questions):
+            next_question = session.pending_questions[session.question_index]
+            session.suggestion = {
+                "question": next_question,
+                "question_index": session.question_index + 1,
+                "total": len(session.pending_questions),
+            }
+            _patient_append(
+                session,
+                "doctor",
+                f"请告诉我：{next_question}？",
+            )
+            return _patient_state(session)
+        _patient_doctor_suggestion(session)
+        return _patient_state(session)
+    if session.suggestion and session.suggestion.get("candidates"):
+        if any(word in content for word in PATIENT_ESCALATE_KEYWORDS):
+            return _handoff_patient_to_chief(session)
+        if any(word in content for word in PATIENT_YES_KEYWORDS):
+            return _finalize_patient(session, "doctor")
+        _patient_append(
+            session,
+            "doctor",
+            "您可以回复“确认”结诊，或回复“请主任会诊”由主任医师复核。",
+        )
+        return _patient_state(session)
+    return _patient_state(session)
+
+
+def _chief_turn(session: PatientSession, content: str) -> dict:
+    if any(word in content for word in PATIENT_YES_KEYWORDS):
+        return _finalize_patient(session, "chief")
+    _patient_append(
+        session,
+        "chief",
+        "请回复“确认”完成结诊，我会把记录和影像报告保存到医院系统。",
+    )
+    return _patient_state(session)
+
+
+def _patient_message(body: dict) -> dict:
+    session = _get_patient_session(body)
+    content = str(body.get("content", "")).strip()
+    if not content:
+        raise ValueError("消息内容为空")
+    _patient_append(session, "user", content)
+    if session.stage == "triage":
+        return _triage_turn(session, content)
+    if session.stage == "doctor":
+        return _doctor_turn(session, content)
+    if session.stage == "chief":
+        return _chief_turn(session, content)
+    raise ValueError("就诊已结束")
+
+
 def _save_audio(session_id: str, raw: bytes) -> dict:
     if not session_id or not raw:
         raise ValueError("缺少会话或音频数据")
@@ -866,6 +1185,14 @@ class DemoHandler(BaseHTTPRequestHandler):
                 _json_response(self, {"error": "会话不存在"}, status=404)
                 return
             _json_response(self, _assistant_state(session))
+            return
+        if path == "/api/patient/state":
+            session_id = parse_qs(urlparse(self.path).query).get("session_id", [""])[0]
+            session = STATE.patient_sessions.get(session_id)
+            if session is None:
+                _json_response(self, {"error": "患者会话不存在"}, status=404)
+                return
+            _json_response(self, _patient_state(session))
             return
         if path.startswith("/audio/"):
             target = (AUDIO_DIR / path.removeprefix("/audio/")).resolve()
@@ -919,6 +1246,12 @@ class DemoHandler(BaseHTTPRequestHandler):
             if path == "/api/assistant/answer_question":
                 _json_response(self, _answer_question_assistant(body))
                 return
+            if path == "/api/patient/start":
+                _json_response(self, _start_patient(body))
+                return
+            if path == "/api/patient/message":
+                _json_response(self, _patient_message(body))
+                return
         except ValueError as exc:
             _json_response(self, {"error": str(exc)}, status=400)
             return
@@ -932,6 +1265,8 @@ class DemoHandler(BaseHTTPRequestHandler):
             path = "/index.html"
         elif path in ("/assistant", "/assistant/"):
             path = "/assistant.html"
+        elif path in ("/patient", "/patient/"):
+            path = "/patient.html"
         relative = path.lstrip("/")
         target = (STATIC_DIR / relative).resolve()
         if not str(target).startswith(str(STATIC_DIR.resolve())) or not target.is_file():
