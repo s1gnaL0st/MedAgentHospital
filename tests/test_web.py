@@ -223,3 +223,25 @@ def test_patient_escalate_to_chief() -> None:
 
     state = _patient_message({"session_id": session_id, "content": "确认"})
     assert state["done"] is True
+
+
+def test_patient_provided_imaging_analyzed() -> None:
+    state = _start_patient({"gender": "male", "age": 60})
+    session_id = state["session_id"]
+    state = _patient_message(
+        {"session_id": session_id, "content": "喘息,胸闷,咳嗽"}
+    )
+    state = _patient_message({"session_id": session_id, "content": "同意"})
+    while state["suggestion"] and state["suggestion"].get("question"):
+        state = _patient_message({"session_id": session_id, "content": "有"})
+
+    state = _patient_message(
+        {
+            "session_id": session_id,
+            "content": "我拍了胸部CT，报告显示肺叶实变影",
+        }
+    )
+    assert any(message["sender"] == "imaging" for message in state["messages"])
+    assert state["reports"]
+    assert state["reports"][-1]["exam_name"] == "胸部CT"
+    assert state["stage"] == "doctor"

@@ -834,6 +834,19 @@ def _confirm_assistant(body: dict) -> dict:
 
 PATIENT_YES_KEYWORDS = ("是", "有", "同意", "可以", "好的", "好", "确认", "确定", "嗯")
 PATIENT_ESCALATE_KEYWORDS = ("会诊", "主任", "不确定", "再看看", "没把握")
+PATIENT_IMAGING_KEYWORDS = (
+    "影像",
+    "CT",
+    "X线",
+    "X光",
+    "核磁",
+    "MRI",
+    "超声",
+    "B超",
+    "造影",
+    "片子",
+)
+PATIENT_IMAGING_NEGATIVE = ("没有", "没做", "未做", "未拍", "没拍", "无")
 
 
 @dataclass
@@ -1085,7 +1098,73 @@ def _finalize_patient(session: PatientSession, agent: str) -> dict:
     return _patient_state(session)
 
 
+def _is_patient_imaging_message(content: str) -> bool:
+    if any(word in content for word in PATIENT_IMAGING_NEGATIVE):
+        return False
+    return any(keyword in content for keyword in PATIENT_IMAGING_KEYWORDS)
+
+
+def _analyze_patient_imaging(
+    session: PatientSession, content: str
+) -> dict:
+    exam_name = "影像检查"
+    for keyword in (
+        "胸部CT",
+        "头颅CT",
+        "腹部CT",
+        "CT",
+        "核磁",
+        "MRI",
+        "B超",
+        "超声",
+        "X线",
+        "X光",
+        "造影",
+    ):
+        if keyword in content:
+            exam_name = keyword
+            break
+    best_name = (session.suggestion or {}).get("best_name", "")
+    if best_name:
+        impression = f"患者提供的影像描述提示与{best_name}相关的异常表现，请结合临床"
+    else:
+        impression = "影像描述提示存在异常征象，需结合临床资料综合判断"
+    report = {
+        "exam_name": exam_name,
+        "findings": f"患者描述：{content}",
+        "impression": impression,
+        "suggestion": "建议结合完整影像资料、实验室检查与主诊医师意见综合判断",
+    }
+    STATE.hospital_store.add_report(
+        session.session_id,
+        report["exam_name"],
+        report["findings"],
+        report["impression"],
+        report["suggestion"],
+    )
+    return report
+
+
 def _doctor_turn(session: PatientSession, content: str) -> dict:
+    if _is_patient_imaging_message(content):
+        report = _analyze_patient_imaging(session, content)
+        _patient_append(
+            session,
+            "imaging",
+            (
+                f"已分析患者提供的影像（{report['exam_name']}）。"
+                f"影像所见：{report['findings']}；"
+                f"结论：{report['impression']}；"
+                f"建议：{report['suggestion']}。"
+            ),
+            payload=report,
+        )
+        _patient_append(
+            session,
+            "doctor",
+            "我已收到影像分析报告，将结合影像所见继续判断。",
+        )
+        return _patient_state(session)
     if session.suggestion and session.suggestion.get("question"):
         present = any(word in content for word in PATIENT_YES_KEYWORDS)
         symptom = session.suggestion["question"]

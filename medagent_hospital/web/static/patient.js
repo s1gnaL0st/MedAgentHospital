@@ -2,6 +2,7 @@ const AGENT_LABELS = {
   guide: "导医",
   doctor: "主诊医生",
   chief: "主任医师",
+  imaging: "影像分析",
   system: "系统",
   user: "我",
 };
