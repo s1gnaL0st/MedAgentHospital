@@ -37,6 +37,7 @@ from medagent_hospital.simulacrum.models import (
     PatientRecord,
 )
 from medagent_hospital.web.hospital_store import HospitalRecordStore
+from medagent_hospital.web.db_agent import DatabaseAgent, STAFF_VISIBLE, ROLE_AGENT_IDS
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 AUDIO_DIR = Path(__file__).resolve().parents[2] / "data" / "generated" / "audio"
@@ -53,6 +54,7 @@ class DemoState:
         self.assistant_sessions: dict[str, "AssistantSession"] = {}
         self.patient_sessions: dict[str, "PatientSession"] = {}
         self.hospital_store = HospitalRecordStore()
+        self.db_agent = DatabaseAgent(self.hospital_store, self.kb)
         self.lock = threading.Lock()
 
 
@@ -873,8 +875,18 @@ def _patient_append(
     payload: dict | None = None,
 ) -> None:
     message: dict = {"sender": sender, "content": content, "payload": payload or {}}
+    seq = len(session.messages) + 1
     session.messages.append(message)
     STATE.hospital_store.add_message(session.session_id, sender, "patient", content)
+    role = "patient" if sender == "user" else ("db_agent" if sender == "system" else sender)
+    STATE.db_agent.record_event(
+        session.session_id,
+        seq,
+        role,
+        "message",
+        {"sender": sender, "content": content, "payload": payload or {}},
+        STAFF_VISIBLE + [ROLE_AGENT_IDS.get("patient", "patient-001")],
+    )
 
 
 def _patient_state(session: PatientSession) -> dict:
@@ -1081,6 +1093,53 @@ def _finalize_patient(session: PatientSession, agent: str) -> dict:
         diagnosis_name=disease.name,
         completed=True,
     )
+    STATE.hospital_store.set_session_complete(
+        session.session_id,
+        {
+            "patient": {
+                "id": session.patient.patient_id,
+                "name": session.patient.name,
+                "gender": session.patient.gender,
+                "age": session.patient.age,
+                "symptoms": list(session.patient.symptoms),
+            },
+            "messages": session.messages,
+            "decisions": session.decisions,
+            "orders": STATE.hospital_store.list_orders(session.session_id),
+            "reports": STATE.hospital_store.list_reports(session.session_id),
+        },
+    )
+    STATE.db_agent.save_memory(
+        "guide-001",
+        session.session_id,
+        "summary",
+        {"department": session.department, "note": "分诊确认"},
+        visible_to=["guide-001"],
+    )
+    STATE.db_agent.save_memory(
+        "doctor-001",
+        session.session_id,
+        "case",
+        {
+            "diagnosis_id": disease.id,
+            "diagnosis_name": disease.name,
+            "exams": exams,
+            "medications": medications,
+        },
+        visible_to=["doctor-001", "chief-001"],
+    )
+    if agent == "chief":
+        STATE.db_agent.save_memory(
+            "chief-001",
+            session.session_id,
+            "summary",
+            {
+                "diagnosis_id": disease.id,
+                "diagnosis_name": disease.name,
+                "final": True,
+            },
+            visible_to=["chief-001"],
+        )
     session.stage = "done"
     session.decisions["final"] = {
         "disease_id": disease.id,
@@ -1141,6 +1200,18 @@ def _analyze_patient_imaging(
         report["findings"],
         report["impression"],
         report["suggestion"],
+    )
+    STATE.db_agent.save_memory(
+        "imaging-001",
+        session.session_id,
+        "observation",
+        {
+            "exam_name": report["exam_name"],
+            "findings": report["findings"],
+            "impression": report["impression"],
+            "suggestion": report["suggestion"],
+        },
+        visible_to=["imaging-001", "doctor-001", "chief-001"],
     )
     return report
 
@@ -1229,6 +1300,34 @@ def _patient_message(body: dict) -> dict:
     raise ValueError("就诊已结束")
 
 
+def _db_save_memory(body: dict) -> dict:
+    agent_id = str(body.get("agent_id", "")).strip()
+    if not agent_id:
+        raise ValueError("缺少 agent_id")
+    return STATE.db_agent.save_memory(
+        agent_id,
+        str(body.get("session_id", "")),
+        str(body.get("memory_type", "")),
+        body.get("content") or {},
+        source_event_id=body.get("source_event_id"),
+        importance=float(body.get("importance", 1.0)),
+        visible_to=body.get("visible_to"),
+    )
+
+
+def _db_retrieve_memory(body: dict) -> dict:
+    agent_id = str(body.get("agent_id", "")).strip()
+    if not agent_id:
+        raise ValueError("缺少 agent_id")
+    return {
+        "hits": STATE.db_agent.retrieve(
+            agent_id,
+            body.get("query") or {},
+            int(body.get("top_k", 3)),
+        )
+    }
+
+
 def _save_audio(session_id: str, raw: bytes) -> dict:
     if not session_id or not raw:
         raise ValueError("缺少会话或音频数据")
@@ -1272,6 +1371,10 @@ class DemoHandler(BaseHTTPRequestHandler):
                 _json_response(self, {"error": "患者会话不存在"}, status=404)
                 return
             _json_response(self, _patient_state(session))
+            return
+        if path == "/api/db/audit":
+            agent_id = parse_qs(urlparse(self.path).query).get("agent_id", [""])[0] or None
+            _json_response(self, {"audit": STATE.hospital_store.list_audit(agent_id)})
             return
         if path.startswith("/audio/"):
             target = (AUDIO_DIR / path.removeprefix("/audio/")).resolve()
@@ -1330,6 +1433,12 @@ class DemoHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/patient/message":
                 _json_response(self, _patient_message(body))
+                return
+            if path == "/api/db/memory/save":
+                _json_response(self, _db_save_memory(body))
+                return
+            if path == "/api/db/memory/retrieve":
+                _json_response(self, _db_retrieve_memory(body))
                 return
         except ValueError as exc:
             _json_response(self, {"error": str(exc)}, status=400)

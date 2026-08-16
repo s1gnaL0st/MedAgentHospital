@@ -245,3 +245,23 @@ def test_patient_provided_imaging_analyzed() -> None:
     assert state["reports"]
     assert state["reports"][-1]["exam_name"] == "胸部CT"
     assert state["stage"] == "doctor"
+
+
+def test_patient_finalize_persists_memories() -> None:
+    from medagent_hospital.web.server import STATE
+
+    state = _start_patient({"gender": "male", "age": 60})
+    session_id = state["session_id"]
+    state = _patient_message(
+        {"session_id": session_id, "content": "喘息,胸闷,咳嗽"}
+    )
+    state = _patient_message({"session_id": session_id, "content": "同意"})
+    while state["suggestion"] and state["suggestion"].get("question"):
+        state = _patient_message({"session_id": session_id, "content": "有"})
+    state = _patient_message({"session_id": session_id, "content": "确认"})
+
+    saved = STATE.hospital_store.get_session(session_id)
+    assert saved["status"] == "closed"
+    assert saved["complete_json"]
+    doctor_memories = STATE.hospital_store.list_memories("doctor-001")
+    assert doctor_memories

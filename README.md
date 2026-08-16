@@ -96,6 +96,18 @@ python scripts/run_deepseek_evolution.py
 对应 Stanford Generative Agents 的 Recency / Importance / Relevance
 记忆检索与记忆巩固机制。
 
+## 数据库管理 Agent
+
+`medagent_hospital/web/db_agent.py` 实现数据库管理 Agent：
+
+- 保存端到端完整会话（`sessions.complete_json`，仅 DB Agent 写入）；
+- 记录会话事件流（`session_events`），按 `visible_to` 控制可见范围；
+- 审查 Agent 记忆写入（`agent_memories`）：
+  Schema 校验、隔离审查、有效性校验、规范化，并写入 `audit_logs`；
+- 提供记忆检索与反思：`/api/db/memory/retrieve`、`POST /api/db/memory/save`、
+  `GET /api/db/audit`；
+- 患者会话结诊时自动写入完整会话与各 Agent 独立记忆（导医/主诊/主任/影像）。
+
 ## DeepSeek 冒烟测试
 
 ```bash

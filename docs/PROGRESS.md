@@ -607,6 +607,41 @@ D 最终准确率高于 A 2.0pp，且曲线更稳定。
 - 接入视觉模型，直接分析患者上传的影像图片；
 - 影像报告纳入主诊鉴别诊断权重。
 
+## D17：数据库管理 Agent（记忆隔离 + 审计 + 反思）
+
+### 目标
+
+按 `docs/DATABASE_DESIGN.md` 实现数据库管理 Agent：端到端会话归 DB Agent 所有，
+各 Agent 只保存自己可见层级的记忆，写入前经过隔离与有效性审查。
+
+### 实现
+
+- `hospital_store.py`：新增 `agents / session_events / agent_memories /
+  audit_logs` 表，并增加旧库迁移（`complete_json` / `status` 列）；
+- `db_agent.py`：`DatabaseAgent` 实现
+  `record_event / save_memory / retrieve / reflect`；
+- 记忆写入审查：Schema、可见范围（`visible_to` 必须包含写入 Agent）、
+  疾病/科室有效性、规范化，全部写入审计日志；
+- 患者流程：会话消息自动记录为事件流；结诊时写入完整会话快照，
+  并分别保存导医（分诊）、主诊（案例）、主任（最终结论）、
+  影像（影像报告）的独立记忆；
+- API：`POST /api/db/memory/save`、`POST /api/db/memory/retrieve`、
+  `GET /api/db/audit`。
+
+### 验证
+
+- 新增 `tests/test_database_agent.py`：隔离审查拒绝、有效性审查拒绝、
+  记忆检索与强化、反思生成 reflection；
+- 患者结诊后完整会话关闭、主诊记忆落库；
+- 64 个测试全部通过。
+
+### 下一步
+
+- 把 `MedicalCaseBase` / `ExperienceBase` 读写切换为 `agent_memories`，
+  实现真正的持久化记忆流；
+- 定时反思任务与记忆衰减归档；
+- 前端增加记忆库/审计日志视图。
+
 ## D15：记忆流检索（Stanford Generative Agents 风格，最小可验证版）
 
 ### 目标
