@@ -76,7 +76,7 @@ def test_case_base_jaccard_retrieval() -> None:
     )
     hits = base.retrieve({"symptoms": ["发热", "咳嗽", "乏力"], "exam_names": ["胸部CT"]}, top_k=1)
     assert hits[0].case.diagnosis_id == "RESP-001"
-    assert 0 < hits[0].score <= 1
+    assert hits[0].score > 0
 
 
 def test_experience_rule_retrieval() -> None:

@@ -579,3 +579,30 @@ D 最终准确率高于 A 2.0pp，且曲线更稳定。
 
 - 将患者页的结诊结果回写案例库/经验库，打通“仿真训练 → 真实使用 → 反馈进化”；
 - 增加更多 Agent（药师、影像科、随访护士）接入同一切换机制。
+
+## D15：记忆流检索（Stanford Generative Agents 风格，最小可验证版）
+
+### 目标
+
+把案例库从纯 Jaccard 检索升级为带时近性、重要性和检索强化的记忆流，
+对应 Stanford Generative Agents 的 Recency / Importance / Relevance
+记忆检索与巩固机制。
+
+### 实现
+
+- `MedicalCase` 新增 `created_at` / `importance` / `retrieval_count`；
+- `MedicalCaseBase.retrieve` 改为复合打分：
+  `score = relevance × exp(-decay_rate × age) × importance × (1 + 0.1 × retrieval_count)`；
+- 每次检索命中会 `retrieval_count += 1`，形成“频繁回忆则权重提升”的强化；
+- `decay_rate` / `reinforcement_factor` 可配置，便于做消融实验。
+
+### 验证
+
+- 新增 `tests/test_memory_stream.py`：时近性偏好新记忆、
+  重要性排序、检索强化提升后续分数；
+- 57 个测试全部通过。
+
+### 下一步
+
+- 把 ExperienceBase 也接入衰减与强化，并做“记忆存活率/准确率”实验；
+- 用 embedding 替换 Jaccard 作为相关性维度。

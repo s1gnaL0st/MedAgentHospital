@@ -82,6 +82,19 @@ python scripts/run_deepseek_evolution.py
 每次转诊都会记录 `handoff` 事件；就诊完成后的医嘱和影像报告写入
 医院记录库。该页面仅用于算法演示与研究，不构成临床诊断。
 
+## 记忆流（Stanford Generative Agents 风格）
+
+`MedicalCaseBase` 升级为带时间戳的记忆流检索：
+
+- 时近性：`exp(-decay_rate × 记忆年龄)` 指数衰减；
+- 重要性：每条记忆带 `importance` 权重；
+- 相关性：症状/检查 Jaccard 相似度；
+- 检索强化：每次被检索命中，`retrieval_count` +1，
+  后续检索权重提升（`1 + 0.1 × retrieval_count`）。
+
+对应 Stanford Generative Agents 的 Recency / Importance / Relevance
+记忆检索与记忆巩固机制。
+
 ## DeepSeek 冒烟测试
 
 ```bash
