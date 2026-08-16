@@ -46,3 +46,19 @@ def test_retrieval_reinforces_memory() -> None:
     second = base.retrieve(QUERY, top_k=1, now=now)[0]
     assert second.score > first.score
     assert case.retrieval_count == 2
+
+
+def test_recency_uses_last_access() -> None:
+    base = MedicalCaseBase(decay_rate=1.0)
+    now = time.time()
+    first = MedicalCase(**CASE, created_at=now)
+    second = MedicalCase(**CASE, created_at=now)
+    base.add(first)
+    base.add(second)
+    # Retrieve first once so its last access time becomes fresh.
+    first_hits = base.retrieve(QUERY, top_k=1, now=now)
+    assert first_hits[0].case is first
+    later = now + 2
+    later_hits = base.retrieve(QUERY, top_k=2, now=later)
+    assert later_hits[0].case is first
+    assert later_hits[0].score > later_hits[1].score

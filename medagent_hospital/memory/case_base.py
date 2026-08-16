@@ -16,6 +16,7 @@ class MedicalCase:
     diagnosis_id: str = ""
     outcome: str = "recovered"
     created_at: float = 0.0
+    last_accessed_at: float = 0.0
     importance: float = 1.0
     retrieval_count: int = 0
 
@@ -49,6 +50,8 @@ class MedicalCaseBase:
     def add(self, case: MedicalCase) -> bool:
         if case.created_at <= 0:
             case.created_at = time.time()
+        if case.last_accessed_at <= 0:
+            case.last_accessed_at = case.created_at
         if self.dedup_threshold > 0 and self._similarity_to_existing(case) >= self.dedup_threshold:
             self.skipped += 1
             return False
@@ -74,7 +77,8 @@ class MedicalCaseBase:
             relevance = self._combined_score(query, case)
             if relevance <= 0:
                 continue
-            age = max(0.0, now - case.created_at)
+            last_access = case.last_accessed_at or case.created_at
+            age = max(0.0, now - last_access)
             recency = math.exp(-self.decay_rate * age)
             reinforcement = 1.0 + self.reinforcement_factor * case.retrieval_count
             score = relevance * recency * case.importance * reinforcement
@@ -83,6 +87,7 @@ class MedicalCaseBase:
         hits = scored[:top_k]
         for hit in hits:
             hit.case.retrieval_count += 1
+            hit.case.last_accessed_at = now
         return hits
 
     @staticmethod

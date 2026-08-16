@@ -593,6 +593,8 @@ D 最终准确率高于 A 2.0pp，且曲线更稳定。
 - `MedicalCase` 新增 `created_at` / `importance` / `retrieval_count`；
 - `MedicalCaseBase.retrieve` 改为复合打分：
   `score = relevance × exp(-decay_rate × age) × importance × (1 + 0.1 × retrieval_count)`；
+- 时近性按“最后一次被检索的时间”计算（与 Generative Agents 原文一致），
+  而不是创建时间；
 - 每次检索命中会 `retrieval_count += 1`，形成“频繁回忆则权重提升”的强化；
 - `decay_rate` / `reinforcement_factor` 可配置，便于做消融实验。
 
