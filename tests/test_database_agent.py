@@ -3,6 +3,9 @@
 import pytest
 
 from medagent_hospital.knowledge import load_knowledge_base
+from medagent_hospital.memory.case_base import MedicalCase
+from medagent_hospital.memory.experience_base import ExperienceRule
+from medagent_hospital.simulacrum.memory_manager import MemoryManager
 from medagent_hospital.web.db_agent import DatabaseAgent
 from medagent_hospital.web.hospital_store import HospitalRecordStore
 
@@ -92,3 +95,51 @@ def test_reflect_creates_reflection_memory(db_agent) -> None:
     assert result["verdict"] == "approved"
     memories = store.list_memories("doctor-001")
     assert any(memory["memory_type"] == "reflection" for memory in memories)
+
+
+def test_training_memories_survive_database_reopen(tmp_path) -> None:
+    db_path = tmp_path / "training.db"
+    kb = load_knowledge_base()
+    store = HospitalRecordStore(db_path)
+    agent = DatabaseAgent(store, kb)
+    manager = MemoryManager(
+        kb,
+        db_agent=agent,
+        memory_agent_id="doctor-training-01",
+        memory_session_id="training-D-42",
+        department="呼吸科",
+    )
+    manager.case_base.add(
+        MedicalCase(
+            patient={"symptoms": ["发热"], "exam_names": ["胸部CT"]},
+            diagnosis="社区获得性肺炎",
+            diagnosis_id="RESP-001",
+            treatment="抗生素",
+        )
+    )
+    manager.experience_base.add(
+        ExperienceRule(
+            trigger=("发热", "胸部CT"),
+            rule="发热伴胸部CT异常优先考虑肺炎",
+            favor="RESP-001",
+        )
+    )
+    manager.persist_all()
+    store.close()
+
+    reopened = HospitalRecordStore(db_path)
+    reopened_agent = DatabaseAgent(reopened, kb)
+    restored_manager = MemoryManager(
+        kb,
+        db_agent=reopened_agent,
+        memory_agent_id="doctor-training-01",
+        memory_session_id="training-D-42",
+        department="呼吸科",
+    )
+    restored_manager.load_persisted()
+
+    assert len(restored_manager.case_base) == 1
+    assert restored_manager.case_base._cases[0].diagnosis_id == "RESP-001"
+    assert len(restored_manager.experience_base) == 1
+    assert restored_manager.experience_base.get("R1").favor == "RESP-001"
+    reopened.close()

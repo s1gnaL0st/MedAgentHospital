@@ -360,6 +360,25 @@ class HospitalRecordStore:
         )
         self._conn.commit()
 
+    def update_memory(
+        self, memory_id: str, content: dict, importance: float | None = None
+    ) -> None:
+        if importance is None:
+            self._conn.execute(
+                "UPDATE agent_memories SET content = ? WHERE memory_id = ?",
+                (json.dumps(content, ensure_ascii=False), memory_id),
+            )
+        else:
+            self._conn.execute(
+                """
+                UPDATE agent_memories
+                SET content = ?, importance = ?, status = 'active'
+                WHERE memory_id = ?
+                """,
+                (json.dumps(content, ensure_ascii=False), importance, memory_id),
+            )
+        self._conn.commit()
+
     def list_memories(self, agent_id: str) -> list[dict]:
         rows = self._conn.execute(
             """

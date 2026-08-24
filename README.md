@@ -83,6 +83,12 @@ python scripts/run_deepseek_evolution.py
 每次转诊都会记录 `handoff` 事件；就诊完成后的医嘱和影像报告写入
 医院记录库。该页面仅用于算法演示与研究，不构成临床诊断。
 
+患者入口的流程编排使用 LangGraph `StateGraph` 实现。每个患者会话的
+`session_id` 映射为 LangGraph `thread_id`，图状态通过
+`langgraph-checkpoint-sqlite` 保存到 `data/generated/hospital_records.db`，
+支持服务重启后的流程状态恢复。图节点目前包含导医、主诊和主任，影像分析作为
+主诊节点内的辅助 Agent 执行；后续可继续扩展文献研究、人工确认和随访节点。
+
 ## 记忆流（Stanford Generative Agents 风格）
 
 `MedicalCaseBase` 升级为带时间戳的记忆流检索：

@@ -14,6 +14,8 @@ import uuid
 from typing import Any
 
 from medagent_hospital.knowledge import KnowledgeBase
+from medagent_hospital.memory.case_base import MedicalCase, MedicalCaseBase
+from medagent_hospital.memory.experience_base import ExperienceBase, ExperienceRule
 from medagent_hospital.web.hospital_store import HospitalRecordStore
 
 MEMORY_TYPES = {"observation", "case", "rule", "reflection", "summary"}
@@ -72,6 +74,20 @@ class DatabaseAgent:
         }
         for role, agent_id in ROLE_AGENT_IDS.items():
             self.store.upsert_agent(agent_id, role, names[role])
+
+    def register_agent(
+        self, agent_id: str, role: str, name: str, department: str = ""
+    ) -> None:
+        """Register a scoped Agent, such as one doctor per department."""
+        self.store.upsert_agent(agent_id, role, name, department)
+
+    def ensure_session(self, session_id: str, patient: dict | None = None) -> None:
+        """Create a session shell for training memories when needed."""
+        if self.store.get_session(session_id) is None:
+            self.store.create_session(
+                session_id,
+                patient or {"type": "training", "session_id": session_id},
+            )
 
     def agent_id_for(self, role: str) -> str:
         return ROLE_AGENT_IDS.get(role, role)
@@ -136,6 +152,22 @@ class DatabaseAgent:
             )
             return {"verdict": "rejected", "issues": issues, "audit_id": audit_id}
 
+        existing = self._find_existing_memory(
+            agent_id, session_id, memory_type, content
+        )
+        if existing is not None:
+            audit_id = self.store.add_audit(
+                session_id, agent_id, existing["memory_id"], "update", "approved", []
+            )
+            self.store.update_memory(existing["memory_id"], content, float(importance))
+            return {
+                "verdict": "approved",
+                "memory_id": existing["memory_id"],
+                "audit_id": audit_id,
+                "agent_id": agent_id,
+                "updated": True,
+            }
+
         memory_id = f"MEM-{uuid.uuid4().hex[:10]}"
         audit_id = self.store.add_audit(
             session_id, agent_id, memory_id, "save", "approved", []
@@ -156,6 +188,152 @@ class DatabaseAgent:
             "audit_id": audit_id,
             "agent_id": agent_id,
         }
+
+    def _find_existing_memory(
+        self,
+        agent_id: str,
+        session_id: str,
+        memory_type: str,
+        content: dict,
+    ) -> dict | None:
+        for row in self.store.list_memories(agent_id):
+            if row["session_id"] != session_id or row["memory_type"] != memory_type:
+                continue
+            stored = json.loads(row["content"])
+            if memory_type == "rule" and content.get("rule_id"):
+                if stored.get("rule_id") == content["rule_id"]:
+                    return row
+            elif stored == content:
+                return row
+        return None
+
+    def save_case(
+        self,
+        agent_id: str,
+        session_id: str,
+        case: MedicalCase,
+        *,
+        department: str = "",
+        source_event_id: int | None = None,
+    ) -> dict:
+        """Persist a successful case through the audited memory boundary."""
+        return self.save_memory(
+            agent_id,
+            session_id,
+            "case",
+            {
+                "patient": case.patient,
+                "diagnosis": case.diagnosis,
+                "diagnosis_id": case.diagnosis_id,
+                "treatment": case.treatment,
+                "outcome": case.outcome,
+                "department": department,
+            },
+            source_event_id=source_event_id,
+            importance=case.importance,
+        )
+
+    def save_rule(
+        self,
+        agent_id: str,
+        session_id: str,
+        rule: ExperienceRule,
+        *,
+        department: str = "",
+        source_event_id: int | None = None,
+    ) -> dict:
+        """Persist a validated reflection rule through the audited boundary."""
+        return self.save_memory(
+            agent_id,
+            session_id,
+            "rule",
+            {
+                "rule_id": rule.rule_id,
+                "trigger": list(rule.trigger),
+                "rule": rule.rule,
+                "favor": rule.favor,
+                "against": rule.against,
+                "strength": rule.strength,
+                "validations": rule.validations,
+                "successes": rule.successes,
+                "source": rule.source,
+                "department": department,
+            },
+            source_event_id=source_event_id,
+            importance=max(1.0, rule.strength),
+        )
+
+    def load_case_base(
+        self,
+        agent_id: str,
+        *,
+        department: str = "",
+        dedup_threshold: float = 0.0,
+    ) -> MedicalCaseBase:
+        """Rehydrate one Agent's successful cases from SQLite."""
+        base = MedicalCaseBase(dedup_threshold=dedup_threshold)
+        for row in self.store.list_memories(agent_id):
+            if row["memory_type"] != "case":
+                continue
+            content = json.loads(row["content"])
+            stored_department = content.get("department", "")
+            diagnosis = self.kb.get(str(content.get("diagnosis_id", "")))
+            if department and stored_department and stored_department != department:
+                continue
+            if department and not stored_department and diagnosis and diagnosis.department != department:
+                continue
+            case = MedicalCase(
+                patient=content.get("patient") or {
+                    "symptoms": content.get("symptoms", []),
+                    "exam_names": content.get("exam_names", []),
+                },
+                diagnosis=str(content.get("diagnosis", content.get("diagnosis_name", ""))),
+                diagnosis_id=str(content.get("diagnosis_id", "")),
+                treatment=str(content.get("treatment", "")),
+                outcome=str(content.get("outcome", "recovered")),
+                created_at=float(row["created_at"]),
+                last_accessed_at=float(row["last_accessed_at"]),
+                importance=float(row["importance"]),
+                retrieval_count=int(row["retrieval_count"]),
+            )
+            base.add(case)
+        return base
+
+    def load_experience_base(
+        self,
+        agent_id: str,
+        *,
+        department: str = "",
+    ) -> ExperienceBase:
+        """Rehydrate one Agent's validated reflection rules from SQLite."""
+        base = ExperienceBase()
+        for row in self.store.list_memories(agent_id):
+            if row["memory_type"] != "rule":
+                continue
+            content = json.loads(row["content"])
+            if department and content.get("department", "") not in {"", department}:
+                continue
+            favor = str(content.get("favor", ""))
+            against = str(content.get("against", ""))
+            if favor and self.kb.get(favor) is None:
+                continue
+            if against and self.kb.get(against) is None:
+                continue
+            rule = ExperienceRule(
+                trigger=tuple(str(item) for item in content.get("trigger", [])),
+                rule=str(content.get("rule", "")),
+                favor=favor,
+                against=against,
+                strength=float(content.get("strength", 0.6)),
+                validations=int(content.get("validations", 0)),
+                successes=int(content.get("successes", 0)),
+                source=str(content.get("source", "reflection")),
+                rule_id=str(content.get("rule_id", "")),
+            )
+            if not rule.trigger or not rule.rule:
+                continue
+            base.add(rule)
+        return base
 
     def retrieve(
         self,

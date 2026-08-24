@@ -6,6 +6,7 @@ import json
 import random
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
 
 from medagent_hospital.agents.nurse import NurseAgent
 from medagent_hospital.agents.patient import PatientAgent
@@ -101,14 +102,32 @@ def apply_variant(config: EvolutionConfig, variant: str) -> EvolutionConfig:
 class EvolutionTrainer:
     """Reasoner-agnostic evolution loop with per-department doctor memories."""
 
-    def __init__(self, kb: KnowledgeBase, config: EvolutionConfig | None = None) -> None:
+    def __init__(
+        self,
+        kb: KnowledgeBase,
+        config: EvolutionConfig | None = None,
+        db_agent: Any | None = None,
+    ) -> None:
         self.kb = kb
         self.config = config or EvolutionConfig()
+        self.db_agent = db_agent
 
     def train(self, variant: str = "D", return_doctors: bool = False):
         cfg = self.config
         kb = self.kb
         rng = random.Random(cfg.seed)
+        if self.db_agent:
+            self.db_agent.ensure_session(
+                self._memory_session_id(variant),
+                {"type": "training", "variant": variant, "seed": cfg.seed},
+            )
+            for department in kb.departments:
+                self.db_agent.register_agent(
+                    self._memory_agent_id(variant, department),
+                    "doctor",
+                    f"{department}训练医生",
+                    department,
+                )
 
         doctors = DoctorRegistry(
             kb,
@@ -140,9 +159,15 @@ class EvolutionTrainer:
                 validation_patients=validation_patients[department],
                 rule_strength=cfg.rule_strength,
                 reasoner=cfg.reasoner,
+                db_agent=self.db_agent,
+                memory_agent_id=self._memory_agent_id(variant, department),
+                memory_session_id=self._memory_session_id(variant),
+                department=department,
             )
             for department in kb.departments
         }
+        for manager in managers.values():
+            manager.load_persisted()
         replay_buffers: dict[str, list] = {
             department: [] for department in kb.departments
         }
@@ -192,6 +217,7 @@ class EvolutionTrainer:
                         cfg.min_survival_rate, cfg.min_validations
                     )
                     experience_bases[department].adjust_strengths(cfg.min_validations)
+                    managers[department].persist_all()
 
             points.append(
                 (patients_treated, self._evaluate_all(doctors, test_sets))
@@ -224,6 +250,13 @@ class EvolutionTrainer:
         if return_doctors:
             return report, doctors
         return report
+
+    def _memory_session_id(self, variant: str) -> str:
+        return f"training-{variant}-{self.config.seed}"
+
+    def _memory_agent_id(self, variant: str, department: str) -> str:
+        index = self.kb.departments.index(department) + 1
+        return f"doctor-{variant.lower()}-{index:02d}"
 
     def _build_validation_sets(self) -> dict[str, list]:
         sets: dict[str, list] = {}

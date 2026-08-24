@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from medagent_hospital.agents.doctor import DoctorAgent
 from medagent_hospital.agents.nurse import NurseAgent
 from medagent_hospital.agents.patient import PatientAgent
@@ -24,6 +26,10 @@ class MemoryManager:
         validation_patients: list[PatientRecord] | None = None,
         rule_strength: float = 0.6,
         reasoner: str = "rule",
+        db_agent: Any | None = None,
+        memory_agent_id: str = "",
+        memory_session_id: str = "",
+        department: str = "",
     ) -> None:
         self.kb = kb
         self.case_base = case_base if case_base is not None else MedicalCaseBase()
@@ -35,6 +41,53 @@ class MemoryManager:
         )
         self.rule_strength = rule_strength
         self.reasoner = reasoner
+        self.db_agent = db_agent
+        self.memory_agent_id = memory_agent_id
+        self.memory_session_id = memory_session_id
+        self.department = department
+
+    def load_persisted(self) -> None:
+        """Merge this doctor's audited SQLite memories into runtime bases."""
+        if not self.db_agent or not self.memory_agent_id:
+            return
+        persisted_cases = self.db_agent.load_case_base(
+            self.memory_agent_id,
+            department=self.department,
+            dedup_threshold=self.case_base.dedup_threshold,
+        )
+        for case in persisted_cases._cases:
+            self.case_base.add(case)
+        persisted_rules = self.db_agent.load_experience_base(
+            self.memory_agent_id, department=self.department
+        )
+        for rule in persisted_rules:
+            if self.experience_base.get(rule.rule_id) is None:
+                self.experience_base.add(rule)
+
+    def _persist_case(self, case: MedicalCase) -> None:
+        if self.db_agent and self.memory_agent_id and self.memory_session_id:
+            self.db_agent.save_case(
+                self.memory_agent_id,
+                self.memory_session_id,
+                case,
+                department=self.department,
+            )
+
+    def _persist_rule(self, rule: ExperienceRule) -> None:
+        if self.db_agent and self.memory_agent_id and self.memory_session_id:
+            self.db_agent.save_rule(
+                self.memory_agent_id,
+                self.memory_session_id,
+                rule,
+                department=self.department,
+            )
+
+    def persist_all(self) -> None:
+        """Flush current case/rule objects after lifecycle updates."""
+        for case in self.case_base._cases:
+            self._persist_case(case)
+        for rule in self.experience_base:
+            self._persist_rule(rule)
 
     @classmethod
     def with_default_validation(
@@ -56,14 +109,18 @@ class MemoryManager:
         self._record_rule_stats(context, patient)
         if context.diagnosis_id == patient.ground_truth_disease_id:
             if any(exam.is_abnormal() for exam in context.exam_results):
-                self.case_base.add(self._to_case(context, patient))
-                return "case_added"
+                case = self._to_case(context, patient)
+                added = self.case_base.add(case)
+                if added:
+                    self._persist_case(case)
+                return "case_added" if added else "case_duplicate"
             return "case_skipped_no_evidence"
         rule = self.reflect(patient, context)
         if rule is None:
             return "no_rule"
         if self.validate_rule(rule):
             self.experience_base.add(rule)
+            self._persist_rule(rule)
             return "rule_added"
         return "rule_discarded"
 

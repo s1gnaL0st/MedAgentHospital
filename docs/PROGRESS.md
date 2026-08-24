@@ -633,14 +633,22 @@ D 最终准确率高于 A 2.0pp，且曲线更稳定。
 - 新增 `tests/test_database_agent.py`：隔离审查拒绝、有效性审查拒绝、
   记忆检索与强化、反思生成 reflection；
 - 患者结诊后完整会话关闭、主诊记忆落库；
-- 64 个测试全部通过。
+- 训练仿真按“变体 + 科室”注册独立医生 Agent，成功病例和验证通过的反思规则
+  经 DB Agent 审计后落入 `agent_memories`；服务/训练重新启动时自动恢复；
+- 新增数据库重开后的案例/规则恢复回归测试；65 个测试全部通过。
 
 ### 下一步
 
-- 把 `MedicalCaseBase` / `ExperienceBase` 读写切换为 `agent_memories`，
-  实现真正的持久化记忆流；
 - 定时反思任务与记忆衰减归档；
-- 前端增加记忆库/审计日志视图。
+- 前端增加记忆库/审计日志视图；
+
+## D18：患者流程 LangGraph 编排分支
+
+- 新增 `web/patient_graph.py`，用 `StateGraph` 显式编排患者消息的导医、主诊、主任节点；
+- `PatientSession.session_id` 映射为 LangGraph `thread_id`；
+- 使用 `langgraph-checkpoint-sqlite` 将图状态保存到医院 SQLite，支持进程重启后的状态恢复；
+- 原有 Agent 逻辑和仿真 Runtime 保持不变，患者 API 只替换流程调度层；
+- 新增真实 `SqliteSaver` 路由与 checkpoint 测试。
 
 ## D15：记忆流检索（Stanford Generative Agents 风格，最小可验证版）
 

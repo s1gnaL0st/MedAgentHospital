@@ -251,7 +251,9 @@ ORDER BY importance DESC, created_at DESC;
 2. 新增 `agents / session_events / agent_memories / audit_logs`；
 3. `messages` 迁移为 `session_events` 的扁平视图；
 4. `MedicalCaseBase` 与 `ExperienceBase` 改为读写 `agent_memories`；
-5. 服务启动时由 DB Agent 加载各 Agent 记忆，重启不丢失。
+5. 服务启动时由 DB Agent 加载各 Agent 记忆，重启不丢失；
+6. 仿真训练按“训练变体 + 科室”注册独立医生 Agent，成功病例和验证通过的
+   反思规则均通过 DB Agent 审计后持久化，下一次训练会先恢复这些记忆。
 
 ## 8. 安全与边界
 

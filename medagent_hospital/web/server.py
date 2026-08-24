@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import sqlite3
 import threading
 import time
 import uuid
@@ -38,6 +39,7 @@ from medagent_hospital.simulacrum.models import (
 )
 from medagent_hospital.web.hospital_store import HospitalRecordStore
 from medagent_hospital.web.db_agent import DatabaseAgent, STAFF_VISIBLE, ROLE_AGENT_IDS
+from medagent_hospital.web.patient_graph import PatientGraphState, build_patient_graph
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 AUDIO_DIR = Path(__file__).resolve().parents[2] / "data" / "generated" / "audio"
@@ -55,6 +57,17 @@ class DemoState:
         self.patient_sessions: dict[str, "PatientSession"] = {}
         self.hospital_store = HospitalRecordStore()
         self.db_agent = DatabaseAgent(self.hospital_store, self.kb)
+        self.patient_checkpoint_conn = sqlite3.connect(
+            str(self.hospital_store.db_path), check_same_thread=False
+        )
+        try:
+            from langgraph.checkpoint.sqlite import SqliteSaver
+
+            self.patient_checkpointer = SqliteSaver(self.patient_checkpoint_conn)
+            self.patient_checkpointer.setup()
+        except ImportError:
+            self.patient_checkpointer = None
+        self.patient_graph = None
         self.lock = threading.Lock()
 
 
@@ -206,7 +219,9 @@ def _run_evolution(body: dict) -> dict:
     results: dict[str, dict] = {}
     evolved_registry = None
     for variant in variants:
-        trainer = EvolutionTrainer(STATE.kb, apply_variant(config, variant))
+        trainer = EvolutionTrainer(
+            STATE.kb, apply_variant(config, variant), db_agent=STATE.db_agent
+        )
         report, doctors = trainer.train(variant, return_doctors=True)
         results[variant] = report
         if variant == "D":
@@ -1291,13 +1306,26 @@ def _patient_message(body: dict) -> dict:
     if not content:
         raise ValueError("消息内容为空")
     _patient_append(session, "user", content)
-    if session.stage == "triage":
-        return _triage_turn(session, content)
-    if session.stage == "doctor":
-        return _doctor_turn(session, content)
-    if session.stage == "chief":
-        return _chief_turn(session, content)
-    raise ValueError("就诊已结束")
+    if session.stage == "done":
+        raise ValueError("就诊已结束")
+    if STATE.patient_graph is None:
+        STATE.patient_graph = build_patient_graph(
+            get_session=lambda session_id: STATE.patient_sessions.get(session_id),
+            triage=_triage_turn,
+            doctor=_doctor_turn,
+            chief=_chief_turn,
+            checkpointer=STATE.patient_checkpointer,
+        )
+    graph_state: PatientGraphState = {
+        "session_id": session.session_id,
+        "stage": session.stage,
+        "content": content,
+    }
+    result = STATE.patient_graph.invoke(
+        graph_state,
+        config={"configurable": {"thread_id": session.session_id}},
+    )
+    return result["response"]
 
 
 def _db_save_memory(body: dict) -> dict:
