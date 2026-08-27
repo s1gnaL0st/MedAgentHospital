@@ -40,6 +40,22 @@ offline experiment. B8 extends the representation to an executable
 `add_exam` action. Both are intentionally separate from B6's reflection-rule
 baseline.
 
+`memory/skill_distiller.py` adds an optional LLM proposal stage. When enabled,
+the model receives the observable trajectory and must return a JSON candidate.
+The distiller validates the action, evidence predicate, department-local
+disease IDs and examination names. It has no method for writing to the skill
+base; the experiment verifier remains the only admission authority.
+
+Enable it explicitly with:
+
+```powershell
+D:\python\python.exe scripts\run_initial_experiment.py `
+  --reasoner llm --skill-distillation llm --conditions B7 B8
+```
+
+The default is `template`, so offline experiments remain deterministic and do
+not silently incur LLM calls.
+
 The first B7 prototype is negative: a skill that only reranks diagnoses is not
 enough. The B8 prototype is a more faithful action-level test. A three-seed
 1k repeat confirms that it is not a positive mechanism: B8 is

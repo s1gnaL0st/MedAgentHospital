@@ -31,6 +31,7 @@ def main() -> int:
     parser.add_argument("--test-per-department", type=int, default=168)
     parser.add_argument("--batch-size", type=int, default=24)
     parser.add_argument("--reasoner", choices=["rule", "llm"], default="rule")
+    parser.add_argument("--skill-distillation", choices=["template", "llm"], default="template")
     parser.add_argument(
         "--conditions",
         nargs="+",
@@ -56,6 +57,7 @@ def main() -> int:
         validation_patients_per_disease=args.validation_per_disease,
         test_patients_per_department=args.test_per_department,
         batch_size=args.batch_size,
+        skill_distillation=args.skill_distillation,
     )
     result = ExperimentRunner(config=config).run(tuple(args.conditions))
     save_experiment_result(result, args.out, args.plot)

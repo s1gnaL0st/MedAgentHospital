@@ -832,3 +832,9 @@ B8 将 Skill 从诊断重排升级为可执行的 `add_exam` 动作：Skill 在�
 单 seed、1008 训练 / 384 验证 / 1008 测试结果：B3 `86.1%`，B6 `86.8%`，B7 `85.5%`，B8 `86.5%`。B8 尚未超过 B6，暂不能称为有效机制；下一步需做三 seed 复验，并完善“检查是否带来信息增益”的 verifier，而不是仅根据最终诊断是否正确奖励动作。
 
 三 seed、1k 复验结果：B6 `87.4% +/- 0.6%`，B8 `86.8% +/- 0.2%`；B8 的会诊率 `8.9%`、平均步骤 `8.27`，均高于 B6 的 `6.7%` 和 `8.20`。因此 B8 当前是严格的负结果，不应作为项目主张；其价值在于提供了可执行 Skill、完整触发、validation 准入、action-level credit 和 rollback 的工程底座，后续只有接入独立的信息增益 verifier 后才值得再次比较。
+
+## D27：LLM Skill Distiller 接入
+
+新增 `memory/skill_distiller.py`，实现模型驱动的候选 Skill 提炼：模型读取可观察的失败轨迹并输出结构化 JSON，随后由本地 Schema/知识库边界校验器拒绝未知动作、未知疾病、未知检查和未观察证据。Distiller 不能写入 SkillBase，也不能批准自身候选；只有 validation verifier 可以准入。
+
+实验参数新增 `--skill-distillation template|llm`，默认 `template`，只有显式设置 `llm` 才调用配置的 LLM。这样可以严格对比程序化提炼和模型提炼，并保留相同的反事实 validation、checkpoint selection 和 rollback。新增合法候选与幻觉候选拒绝测试；当前全套测试为 74 passed、1 skipped。

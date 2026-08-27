@@ -26,6 +26,7 @@ from medagent_hospital.llm.base import build_llm_backend
 from medagent_hospital.memory.case_base import MedicalCaseBase
 from medagent_hospital.memory.experience_base import ExperienceBase
 from medagent_hospital.memory.skill_base import DiagnosticSkill, DiagnosticSkillBase
+from medagent_hospital.memory.skill_distiller import SkillDistiller
 from medagent_hospital.simulacrum.evolution import CONFUSABLE_GROUPS
 from medagent_hospital.simulacrum.memory_manager import MemoryManager
 from medagent_hospital.simulacrum.models import ConsultationContext, PatientRecord
@@ -69,10 +70,13 @@ class ExperimentConfig:
     min_survival_rate: float = 0.4
     min_validations: int = 3
     use_curriculum: bool = False
+    skill_distillation: str = "template"
 
     def __post_init__(self) -> None:
         if self.reasoner not in {"rule", "llm"}:
             raise ValueError("reasoner must be 'rule' or 'llm'")
+        if self.skill_distillation not in {"template", "llm"}:
+            raise ValueError("skill_distillation must be 'template' or 'llm'")
         if not self.seeds:
             raise ValueError("at least one seed is required")
         if self.patients_per_department < 0 or self.test_patients_per_department < 0:
@@ -767,24 +771,19 @@ class ExperimentRunner:
             if context.diagnosis_id == patient.ground_truth_disease_id:
                 return
             manager = state.managers[department]
-            rule = manager.reflect(patient, context)
-            if rule is None:
+            skill = self._distill_skill(state, department, context, patient, spec)
+            if skill is None:
                 return
             skill = DiagnosticSkill(
                 skill_id=f"S-{department}-{len(state.skill_bases[department]) + 1}",
-                name=f"鉴别 {rule.favor} 与 {rule.against}",
-                trigger=(
-                    self._skill_trigger(rule.trigger, context)
-                    if spec.get("active_skill") else rule.trigger
-                ),
-                favor=rule.favor,
-                against=rule.against,
-                action="add_exam" if spec.get("active_skill") else "rerank",
-                target_exam=(
-                    self._discriminative_exam(patient, context)
-                    if spec.get("active_skill") else ""
-                ),
-                strength=0.25,
+                name=skill.name,
+                trigger=skill.trigger,
+                favor=skill.favor,
+                against=skill.against,
+                action=skill.action,
+                target_exam=skill.target_exam,
+                strength=skill.strength,
+                source=skill.source,
             )
             if spec.get("active_skill") and not skill.target_exam:
                 return
@@ -804,6 +803,43 @@ class ExperimentRunner:
             if any(exam.is_abnormal() for exam in context.exam_results):
                 manager = state.managers[department]
                 manager.case_base.add(manager._to_case(context, patient))
+
+    def _distill_skill(
+        self,
+        state: ConditionState,
+        department: str,
+        context: ConsultationContext,
+        patient: PatientRecord,
+        spec: dict[str, Any],
+    ) -> DiagnosticSkill | None:
+        manager = state.managers[department]
+        rule = manager.reflect(patient, context)
+        if rule is None:
+            return None
+        action = "add_exam" if spec.get("active_skill") else "rerank"
+        trigger = self._skill_trigger(rule.trigger, context) if spec.get("active_skill") else rule.trigger
+        target_exam = self._discriminative_exam(patient, context) if spec.get("active_skill") else ""
+        if self.config.skill_distillation == "llm" and state.llm_backend is not None:
+            proposed = SkillDistiller(state.llm_backend, self.kb).distill(
+                patient, context, skill_id="pending"
+            )
+            if proposed is None or proposed.action != action:
+                return None
+            if action == "add_exam" and not proposed.target_exam:
+                return None
+            return proposed
+        if action == "add_exam" and not target_exam:
+            return None
+        return DiagnosticSkill(
+            skill_id="pending",
+            name=f"鉴别 {rule.favor} 与 {rule.against}",
+            trigger=trigger,
+            favor=rule.favor,
+            against=rule.against,
+            action=action,
+            target_exam=target_exam,
+            strength=0.25,
+        )
 
     def _replay(self, state: ConditionState, department: str, spec: dict[str, Any]) -> None:
         buffer = state.replay_buffers[department]
