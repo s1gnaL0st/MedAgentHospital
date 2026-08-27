@@ -51,7 +51,7 @@ def test_initial_experiment_writes_json_and_plot(tmp_path) -> None:
     assert output.exists()
     assert plot.exists()
     assert plot_initial_experiment(result, tmp_path / "repeat.png") is True
-    assert set(CONDITIONS) == {"B0", "B1", "B2", "B3", "B4", "B5", "B6", "B7"}
+    assert set(CONDITIONS) == {"B0", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8"}
 
 
 def test_selective_evolution_reports_validation_checkpoint_selection() -> None:

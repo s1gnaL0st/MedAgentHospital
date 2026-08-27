@@ -36,13 +36,15 @@ The most suitable path is a staged combination:
 
 `memory/skill_base.py` now provides `DiagnosticSkill` and
 `DiagnosticSkillBase`. B7 integrates skill extraction and validation into the
-offline experiment. It is intentionally separate from B6's reflection-rule
+offline experiment. B8 extends the representation to an executable
+`add_exam` action. Both are intentionally separate from B6's reflection-rule
 baseline.
 
 The first B7 prototype is negative: a skill that only reranks diagnoses is not
-enough. It is useful as a failed ablation because it demonstrates why the next
-implementation must learn action-level utility and not merely add another
-memory namespace.
+enough. The B8 prototype is a more faithful action-level test, but its single
+seed 1k result is only `86.5%` versus B6 `86.8%`; it is not yet a positive
+claim. It is useful because it demonstrates why skill utility must be measured
+against explicit action changes and why multi-seed confirmation is required.
 
 This project does not claim that the above arXiv records are clinical methods,
 nor that the internal generated knowledge base measures medical competence.

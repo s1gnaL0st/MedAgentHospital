@@ -19,6 +19,7 @@ class DiagnosticSkill:
     favor: str
     against: str
     action: str = "rerank"
+    target_exam: str = ""
     strength: float = 0.25
     trials: int = 0
     successes: int = 0
@@ -41,7 +42,17 @@ class DiagnosticSkillBase:
         self._skills = list(skills or [])
 
     def add(self, skill: DiagnosticSkill) -> None:
-        if any(existing.skill_id == skill.skill_id for existing in self._skills):
+        if any(
+            existing.skill_id == skill.skill_id
+            or (
+                existing.trigger == skill.trigger
+                and existing.favor == skill.favor
+                and existing.against == skill.against
+                and existing.action == skill.action
+                and existing.target_exam == skill.target_exam
+            )
+            for existing in self._skills
+        ):
             return
         self._skills.append(skill)
 

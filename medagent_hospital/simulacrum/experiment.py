@@ -145,6 +145,16 @@ CONDITIONS: dict[str, dict[str, Any]] = {
         "skill": True,
         "selective": True,
     },
+    "B8": {
+        "label": "主动检查技能自进化（验证器准入）",
+        "multi_agent": True,
+        "memory": "cases",
+        "evolve": True,
+        "fixed": False,
+        "skill": True,
+        "active_skill": True,
+        "selective": True,
+    },
 }
 
 
@@ -502,6 +512,7 @@ class ExperimentRunner:
         best_treated = 0
         best_cases: dict[str, MedicalCaseBase] | None = None
         best_rules: dict[str, ExperienceBase] | None = None
+        best_skills: dict[str, DiagnosticSkillBase] | None = None
 
         points.append(
             self._checkpoint(
@@ -515,6 +526,7 @@ class ExperimentRunner:
             best_validation = self._validation_score(state, spec)
             best_cases = deepcopy(state.case_bases)
             best_rules = deepcopy(state.rule_bases)
+            best_skills = deepcopy(state.skill_bases)
         for start in range(0, self.config.patients_per_department, self.config.batch_size):
             for department in self.kb.departments:
                 batch = cohorts.train[department][start : start + self.config.batch_size]
@@ -548,6 +560,7 @@ class ExperimentRunner:
                     )
                     best_cases = deepcopy(state.case_bases)
                     best_rules = deepcopy(state.rule_bases)
+                    best_skills = deepcopy(state.skill_bases)
 
             treated = min(
                 self.config.patients_per_department,
@@ -565,8 +578,8 @@ class ExperimentRunner:
         after_dataset = self._dataset_signature(cohorts)
         if before_dataset != after_dataset:
             raise AssertionError("experiment mutated its source cohorts")
-        if best_cases is not None and best_rules is not None:
-            self._restore_memory(state, best_cases, best_rules)
+        if best_cases is not None and best_rules is not None and best_skills is not None:
+            self._restore_memory(state, best_cases, best_rules, best_skills)
             points[-1] = self._checkpoint(
                 best_treated,
                 self._evaluate(state, cohorts.test, cohorts.test_tags, spec),
@@ -590,6 +603,11 @@ class ExperimentRunner:
 
     def _validation_score(self, state: ConditionState, spec: dict[str, Any]) -> int:
         """Score a candidate state without mutating its retrieval memories."""
+        if spec.get("skill"):
+            return sum(
+                self._skill_validation_score(state, department, spec)
+                for department in self.kb.departments
+            )
         return sum(
             state.managers[department]._evaluate(
                 deepcopy(state.rule_bases[department])
@@ -602,12 +620,14 @@ class ExperimentRunner:
         state: ConditionState,
         cases: dict[str, MedicalCaseBase],
         rules: dict[str, ExperienceBase],
+        skills: dict[str, DiagnosticSkillBase],
     ) -> None:
         """Restore stores in place so already-constructed doctors keep references."""
         for department in cases:
             state.case_bases[department]._cases = deepcopy(cases[department]._cases)
             state.case_bases[department].skipped = cases[department].skipped
             state.rule_bases[department]._rules = deepcopy(rules[department]._rules)
+            state.skill_bases[department]._skills = deepcopy(skills[department]._skills)
 
     def _build_state(self, spec: dict[str, Any], cohorts: Cohorts) -> ConditionState:
         llm_backend = build_llm_backend() if self.config.reasoner == "llm" else None
@@ -743,6 +763,7 @@ class ExperimentRunner:
         if spec["memory"] == "none":
             return
         if spec.get("skill"):
+            self._record_skill_utility(state, department, context, patient)
             if context.diagnosis_id == patient.ground_truth_disease_id:
                 return
             manager = state.managers[department]
@@ -752,11 +773,21 @@ class ExperimentRunner:
             skill = DiagnosticSkill(
                 skill_id=f"S-{department}-{len(state.skill_bases[department]) + 1}",
                 name=f"鉴别 {rule.favor} 与 {rule.against}",
-                trigger=rule.trigger,
+                trigger=(
+                    self._skill_trigger(rule.trigger, context)
+                    if spec.get("active_skill") else rule.trigger
+                ),
                 favor=rule.favor,
                 against=rule.against,
+                action="add_exam" if spec.get("active_skill") else "rerank",
+                target_exam=(
+                    self._discriminative_exam(patient, context)
+                    if spec.get("active_skill") else ""
+                ),
                 strength=0.25,
             )
+            if spec.get("active_skill") and not skill.target_exam:
+                return
             before = self._skill_validation_score(state, department, spec)
             candidate = deepcopy(state.skill_bases[department])
             candidate.add(skill)
@@ -819,6 +850,68 @@ class ExperimentRunner:
             for patient in state.validation[department]
         )
 
+    @staticmethod
+    def _record_skill_utility(
+        state: ConditionState,
+        department: str,
+        context: ConsultationContext,
+        patient: PatientRecord,
+    ) -> None:
+        """Credit only skill-induced action changes, never passive retrieval."""
+        for action in context.skill_actions:
+            if not action.get("changed"):
+                continue
+            if action.get("action") == "add_exam":
+                # The final outcome credits an active information-gathering
+                # action only if its requested exam was actually abnormal.
+                requested = set(action.get("after_exams", [])) - set(action.get("before_exams", []))
+                after_correct = context.diagnosis_id == patient.ground_truth_disease_id
+                before_correct = False
+                if not any(exam.name in requested and exam.is_abnormal() for exam in context.exam_results):
+                    continue
+            else:
+                before_correct = (
+                    action.get("before_diagnosis_id") == patient.ground_truth_disease_id
+                )
+                after_correct = (
+                    action.get("after_diagnosis_id") == patient.ground_truth_disease_id
+                )
+            # Counterfactual credit is local to the changed ranking, rather
+            # than a blanket reward from the entire multi-agent trajectory.
+            if before_correct == after_correct:
+                continue
+            for skill_id in action.get("skill_ids", []):
+                skill = state.skill_bases[department].get(skill_id)
+                if skill is not None:
+                    state.skill_bases[department].record(
+                        skill,
+                        correct=after_correct,
+                        changed=True,
+                    )
+
+    def _discriminative_exam(
+        self, patient: PatientRecord, context: ConsultationContext,
+    ) -> str:
+        """Derive a testable action from outcome feedback in the simulator."""
+        true = self.kb.get(patient.ground_truth_disease_id)
+        wrong = self.kb.get(context.diagnosis_id)
+        if true is None or wrong is None:
+            return ""
+        wrong_exams = {exam.name for exam in wrong.examinations}
+        for exam in true.examinations:
+            if exam.name not in wrong_exams:
+                return exam.name
+        return ""
+
+    @staticmethod
+    def _skill_trigger(
+        trigger: tuple[str, ...], context: ConsultationContext,
+    ) -> tuple[str, ...]:
+        """Active skills must be usable before the new test is ordered."""
+        observed = set(context.patient.symptoms) | set(context.patient.medical_history)
+        usable = tuple(term for term in trigger if term in observed)
+        return usable or tuple(context.patient.symptoms[:1])
+
     def _failure_priority(
         self,
         context: ConsultationContext,
@@ -858,6 +951,10 @@ class ExperimentRunner:
             base = state.rule_bases[department]
             base.prune(self.config.min_survival_rate, self.config.min_validations)
             base.adjust_strengths(self.config.min_validations)
+            state.skill_bases[department].prune(
+                min_trials=self.config.min_validations,
+                min_utility=0.0,
+            )
 
     def _checkpoint(
         self,

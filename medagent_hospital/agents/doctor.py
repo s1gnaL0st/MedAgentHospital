@@ -212,6 +212,11 @@ class DoctorAgent(Agent):
         )
 
     def _select_exams(self, context: ConsultationContext) -> Action:
+        # Only active skills need pre-examination retrieval. Baseline and
+        # case-memory conditions retain their original decision path so a new
+        # skill ablation cannot alter the comparator itself.
+        if self.skill_base is not None:
+            self._retrieve_memory(context)
         candidates = self._candidate_pool(context)
         scored = self._score_candidates(context.patient, candidates, exam_results=None)
         top_diseases = [disease for _, disease in scored[:2]]
@@ -222,6 +227,32 @@ class DoctorAgent(Agent):
                     exams.append(exam.name)
             if len(exams) >= self.max_exams:
                 break
+        active_skills: list[str] = []
+        baseline_exams = list(exams[: self.max_exams])
+        for skill in context.retrieved_skills:
+            if skill.get("action") != "add_exam" or not skill.get("target_exam"):
+                continue
+            exam = str(skill["target_exam"])
+            if exam in exams:
+                continue
+            if len(exams) >= self.max_exams:
+                # A skill represents an information-gathering policy. Make
+                # its cost explicit by replacing the lowest-priority default
+                # exam rather than silently exceeding the exam budget.
+                exams[-1] = exam
+            else:
+                exams.append(exam)
+            active_skills.append(str(skill["skill_id"]))
+        if active_skills:
+            context.skill_actions.append(
+                {
+                    "skill_ids": active_skills,
+                    "action": "add_exam",
+                    "before_exams": baseline_exams,
+                    "after_exams": list(exams),
+                    "changed": True,
+                }
+            )
         return Action(
             "order_exams",
             {
@@ -392,7 +423,8 @@ class DoctorAgent(Agent):
                     "name": skill.name,
                     "favor": skill.favor,
                     "against": skill.against,
-                    "action": skill.action,
+                        "action": skill.action,
+                        "target_exam": skill.target_exam,
                     "strength": skill.strength,
                 })
         context.retrieved_skills = skills
@@ -436,6 +468,7 @@ class DoctorAgent(Agent):
                 if disease.id == hit["against"]:
                     scored[index] = (score - delta, disease)
 
+        before_skill_id = scored[0][1].id if scored else ""
         for hit in context.retrieved_skills:
             delta = float(hit["strength"]) * self.skill_weight
             for index, (score, disease) in enumerate(scored):
@@ -445,6 +478,17 @@ class DoctorAgent(Agent):
                     scored[index] = (score - delta, disease)
 
         scored.sort(key=lambda item: item[0], reverse=True)
+        after_skill_id = scored[0][1].id if scored else ""
+        if context.retrieved_skills:
+            context.skill_actions.append(
+                {
+                    "skill_ids": [hit["skill_id"] for hit in context.retrieved_skills],
+                    "action": "rerank",
+                    "before_diagnosis_id": before_skill_id,
+                    "after_diagnosis_id": after_skill_id,
+                    "changed": before_skill_id != after_skill_id,
+                }
+            )
         return scored
 
     def _build_llm_prompt(
