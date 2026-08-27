@@ -807,3 +807,20 @@ B4 比 B3 低 0.95pp，B6 比 B3 低 2.48pp。当前模板式失败反思规则�
 | B6 选择性自进化 + checkpoint selection | 87.4% +/- 0.6% | 6.7% | 8.20 |
 
 B6 相比 B3 提升约 `0.3pp`，且跨 seed 方差更低；相比 B4 提升约 `2.2pp`。B4 的普通反思仍然产生负迁移，说明“会生成规则”不等于“会进化”。当前能归因的有效组合是：弱案例证据、全触发策略、独立验证准入、优先回放和 validation checkpoint selection。该结果仍只是内部生成知识库上的机制验证，不是医学泛化或临床能力证明。
+
+## D25：Skill-level self-evolution 研究与原型
+
+### 检索方向
+
+截至 2026-08-27，重点参考了近期公开的 recursive strategy improvement、verifier-grounded optimization、programmatic skill learning、action-level skill utility、skill distillation 和 continual skill evaluation 方向。详细来源与适配分析见 [`docs/EVOLUTION_RESEARCH.md`](EVOLUTION_RESEARCH.md)。
+
+### 原型
+
+- 新增 `memory/skill_base.py`：Skill 具备结构化触发条件、动作类型、适用诊断对、成功/伤害统计、效用和生命周期；
+- 新增 B7：从失败病例提炼诊断 Skill，在 validation 上准入，并接入 checkpoint selection；
+- Skill 只有在完整证据谓词满足时触发，避免模糊关键词驱动；
+- 新增 Skill 单元测试，验证完整触发条件和效用统计。
+
+### 初步结果与结论
+
+B7 在小规模同分布实验中只保留 3 个 Skill，准确率低于 B6，说明“独立 Skill 存储 + 静态 rerank”本身不足以形成有效自进化。这是一个有价值的负结果：下一版 Skill 必须记录 action-level utility（技能是否改变了检查、会诊或诊断动作，以及改变是否带来净收益），并采用 execute -> distill -> verify 的外部验证链，不能只把旧的 ExperienceRule 换一个名称。

@@ -14,6 +14,7 @@ from medagent_hospital.knowledge import Disease, KnowledgeBase, load_knowledge_b
 from medagent_hospital.llm.base import LLMBackend, RuleBackend, build_llm_backend
 from medagent_hospital.memory.case_base import MedicalCaseBase
 from medagent_hospital.memory.experience_base import ExperienceBase
+from medagent_hospital.memory.skill_base import DiagnosticSkillBase
 from medagent_hospital.simulacrum.models import Action, ConsultationContext, HospitalState, PatientRecord
 
 FOCUS_DESCRIPTIONS = {
@@ -43,6 +44,8 @@ class DoctorAgent(Agent):
         symptom_weight: float = 1.0,
         exam_weight: float = 1.0,
         history_weight: float = 1.0,
+        skill_base: DiagnosticSkillBase | None = None,
+        skill_weight: float = 0.25,
     ) -> None:
         if llm is None and reasoner == "llm":
             llm = build_llm_backend()
@@ -60,6 +63,8 @@ class DoctorAgent(Agent):
         self.symptom_weight = symptom_weight
         self.exam_weight = exam_weight
         self.history_weight = history_weight
+        self.skill_base = skill_base
+        self.skill_weight = skill_weight
 
     def run(self, context: ConsultationContext) -> Action:
         if context.current_state == HospitalState.SYMPTOM_QUESTION:
@@ -374,11 +379,29 @@ class DoctorAgent(Agent):
 
         context.retrieved_cases = cases
         context.retrieved_rules = rules
+        skills: list[dict] = []
+        if self.skill_base is not None:
+            query = {
+                "symptoms": context.patient.symptoms,
+                "medical_history": context.patient.medical_history,
+                "exam_names": [exam.name for exam in context.exam_results if exam.is_abnormal()],
+            }
+            for skill in self.skill_base.retrieve(query):
+                skills.append({
+                    "skill_id": skill.skill_id,
+                    "name": skill.name,
+                    "favor": skill.favor,
+                    "against": skill.against,
+                    "action": skill.action,
+                    "strength": skill.strength,
+                })
+        context.retrieved_skills = skills
         context.memory_events.append(
             {
                 "agent": self.name,
                 "case_hits": len(cases),
                 "rule_hits": len(rules),
+                "skill_hits": len(skills),
             }
         )
         return cases, rules
@@ -411,6 +434,14 @@ class DoctorAgent(Agent):
                 if disease.id == hit["favor"]:
                     scored[index] = (score + delta, disease)
                 if disease.id == hit["against"]:
+                    scored[index] = (score - delta, disease)
+
+        for hit in context.retrieved_skills:
+            delta = float(hit["strength"]) * self.skill_weight
+            for index, (score, disease) in enumerate(scored):
+                if disease.id == hit["favor"]:
+                    scored[index] = (score + delta, disease)
+                elif disease.id == hit["against"]:
                     scored[index] = (score - delta, disease)
 
         scored.sort(key=lambda item: item[0], reverse=True)

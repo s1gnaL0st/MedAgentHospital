@@ -19,8 +19,9 @@
 | B4 | 动态会诊 + 失败反思自进化 | 规则验证、生命周期和失败回放是否持续改善 |
 | B5 | 固定流程 + 每例会诊 | 动态升级是否优于无差别会诊 |
 | B6 | 验证器驱动的选择性自进化 | 高价值失败筛选与严格规则验证是否优于普通自进化 |
+| B7 | Skill-level 自进化 | 可复用技能卡是否优于直接写入经验规则 |
 
-B0/B1 隔离案例记忆，B0/B2 隔离协作，B3/B4 隔离反思式自进化，B4/B6 隔离选择策略，B2/B5 隔离动态路由。所有条件使用同一 seed 的完全相同 train、validation、test 病例。
+B0/B1 隔离案例记忆，B0/B2 隔离协作，B3/B4 隔离反思式自进化，B4/B6 隔离选择策略，B6/B7 隔离规则与 Skill 表示，B2/B5 隔离动态路由。所有条件使用同一 seed 的完全相同 train、validation、test 病例。
 
 B6 借鉴近期 Agent 优化中反复出现的三个稳定方向：verifier-guided admission、
 uncertainty/utility-based experience selection 和 diversity-aware replay。它不是某一篇论文的

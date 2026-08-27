@@ -25,6 +25,7 @@ from medagent_hospital.knowledge import KnowledgeBase, load_knowledge_base
 from medagent_hospital.llm.base import build_llm_backend
 from medagent_hospital.memory.case_base import MedicalCaseBase
 from medagent_hospital.memory.experience_base import ExperienceBase
+from medagent_hospital.memory.skill_base import DiagnosticSkill, DiagnosticSkillBase
 from medagent_hospital.simulacrum.evolution import CONFUSABLE_GROUPS
 from medagent_hospital.simulacrum.memory_manager import MemoryManager
 from medagent_hospital.simulacrum.models import ConsultationContext, PatientRecord
@@ -135,6 +136,15 @@ CONDITIONS: dict[str, dict[str, Any]] = {
         "fixed": False,
         "selective": True,
     },
+    "B7": {
+        "label": "技能级自进化（验证器准入）",
+        "multi_agent": True,
+        "memory": "cases",
+        "evolve": True,
+        "fixed": False,
+        "skill": True,
+        "selective": True,
+    },
 }
 
 
@@ -151,6 +161,8 @@ class ConditionState:
     doctors: DoctorRegistry
     case_bases: dict[str, MedicalCaseBase]
     rule_bases: dict[str, ExperienceBase]
+    skill_bases: dict[str, DiagnosticSkillBase]
+    validation: dict[str, list[PatientRecord]]
     managers: dict[str, MemoryManager]
     replay_buffers: dict[str, list[tuple[float, PatientRecord]]]
     llm_backend: Any | None = None
@@ -197,6 +209,7 @@ def _cohort_hash(cohort: dict[str, list[PatientRecord]]) -> str:
 def _memory_signature(
     case_bases: dict[str, MedicalCaseBase],
     rule_bases: dict[str, ExperienceBase],
+    skill_bases: dict[str, DiagnosticSkillBase] | None = None,
 ) -> str:
     payload = {
         "cases": {
@@ -206,6 +219,10 @@ def _memory_signature(
         "rules": {
             department: [asdict(rule) for rule in base]
             for department, base in sorted(rule_bases.items())
+        },
+        "skills": {
+            department: [asdict(skill) for skill in base]
+            for department, base in sorted((skill_bases or {}).items())
         },
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -594,6 +611,9 @@ class ExperimentRunner:
 
     def _build_state(self, spec: dict[str, Any], cohorts: Cohorts) -> ConditionState:
         llm_backend = build_llm_backend() if self.config.reasoner == "llm" else None
+        skill_bases = {
+            department: DiagnosticSkillBase() for department in self.kb.departments
+        }
         doctors = self._new_registry(spec, llm_backend)
         case_bases = {
             department: MedicalCaseBase(
@@ -609,9 +629,10 @@ class ExperimentRunner:
                 lead.experience_base = None
             else:
                 lead.case_base = case_bases[department]
-                lead.experience_base = (
-                    rule_bases[department] if spec["memory"] == "full" else None
-                )
+            lead.experience_base = (
+                rule_bases[department] if spec["memory"] == "full" else None
+            )
+            lead.skill_base = skill_bases[department] if spec.get("skill") else None
 
         managers = {
             department: MemoryManager(
@@ -631,17 +652,25 @@ class ExperimentRunner:
             doctors=doctors,
             case_bases=case_bases,
             rule_bases=rule_bases,
+            skill_bases=skill_bases,
+            validation=cohorts.validation,
             managers=managers,
             replay_buffers={department: [] for department in self.kb.departments},
             llm_backend=llm_backend,
         )
 
-    def _new_registry(self, spec: dict[str, Any], llm_backend: Any | None) -> DoctorRegistry:
+    def _new_registry(
+        self,
+        spec: dict[str, Any],
+        llm_backend: Any | None,
+        skill_bases: dict[str, DiagnosticSkillBase] | None = None,
+    ) -> DoctorRegistry:
         kwargs: dict[str, Any] = {
             "reasoner": self.config.reasoner,
             "case_weight": self.config.case_weight,
             "top_k_cases": self.config.top_k_cases,
             "top_k_rules": self.config.top_k_rules,
+            "skill_weight": 0.25,
         }
         if llm_backend is not None:
             kwargs["llm"] = llm_backend
@@ -672,6 +701,10 @@ class ExperimentRunner:
                     deepcopy(state.rule_bases[department])
                     if spec["memory"] == "full"
                     else None
+                )
+                lead.skill_base = (
+                    deepcopy(state.skill_bases[department])
+                    if spec.get("skill") else None
                 )
         return registry
 
@@ -709,6 +742,28 @@ class ExperimentRunner:
     ) -> None:
         if spec["memory"] == "none":
             return
+        if spec.get("skill"):
+            if context.diagnosis_id == patient.ground_truth_disease_id:
+                return
+            manager = state.managers[department]
+            rule = manager.reflect(patient, context)
+            if rule is None:
+                return
+            skill = DiagnosticSkill(
+                skill_id=f"S-{department}-{len(state.skill_bases[department]) + 1}",
+                name=f"鉴别 {rule.favor} 与 {rule.against}",
+                trigger=rule.trigger,
+                favor=rule.favor,
+                against=rule.against,
+                strength=0.25,
+            )
+            before = self._skill_validation_score(state, department, spec)
+            candidate = deepcopy(state.skill_bases[department])
+            candidate.add(skill)
+            after = self._skill_validation_score(state, department, spec, candidate)
+            if after > before:
+                state.skill_bases[department].add(skill)
+            return
         if spec["evolve"]:
             state.managers[department].update(context, patient)
             return
@@ -738,6 +793,31 @@ class ExperimentRunner:
         state.replay_buffers[department] = [
             (0.0, patient) for patient in still_wrong[-self.config.replay_buffer_size :]
         ]
+
+    def _skill_validation_score(
+        self,
+        state: ConditionState,
+        department: str,
+        spec: dict[str, Any],
+        skills: DiagnosticSkillBase | None = None,
+    ) -> int:
+        """Evaluate one department's candidate skill on a frozen dev cohort."""
+        lead = self._new_registry(spec, state.llm_backend).get(department, 0)
+        lead.case_base = deepcopy(state.case_bases[department])
+        lead.experience_base = None
+        lead.skill_base = deepcopy(skills or state.skill_bases[department])
+        runtime = HospitalRuntime(
+            patient_agent=PatientAgent(kb=self.kb),
+            nurse_agent=NurseAgent(kb=self.kb),
+            doctor_agent=lead,
+            consultation=False,
+            max_steps=self.config.max_steps,
+            nurse_questions=self.config.nurse_questions,
+        )
+        return sum(
+            int(runtime.run_episode(deepcopy(patient)).diagnosis_id == patient.ground_truth_disease_id)
+            for patient in state.validation[department]
+        )
 
     def _failure_priority(
         self,
@@ -800,7 +880,7 @@ class ExperimentRunner:
         tags: dict[str, str],
         spec: dict[str, Any],
     ) -> dict[str, Any]:
-        before = _memory_signature(state.case_bases, state.rule_bases)
+        before = _memory_signature(state.case_bases, state.rule_bases, state.skill_bases)
         evaluation_doctors = self._clone_evaluation_registry(state, spec)
         outcomes: list[dict[str, Any]] = []
         for department in self.kb.departments:
@@ -832,7 +912,7 @@ class ExperimentRunner:
                         "rule_hits": rule_hits,
                     }
                 )
-        after = _memory_signature(state.case_bases, state.rule_bases)
+        after = _memory_signature(state.case_bases, state.rule_bases, state.skill_bases)
         if before != after:
             raise AssertionError("held-out test evaluation mutated agent memory")
         metrics = self._summarize_outcomes(outcomes)
@@ -965,6 +1045,7 @@ class ExperimentRunner:
             "rule_candidates": sum(manager.rule_candidates for manager in state.managers.values()),
             "rules_accepted": sum(manager.rules_accepted for manager in state.managers.values()),
             "rules_discarded": sum(manager.rules_discarded for manager in state.managers.values()),
+            "skill_count": sum(len(base) for base in state.skill_bases.values()),
         }
 
     @staticmethod
@@ -1000,6 +1081,7 @@ class ExperimentRunner:
             "rule_survival_rate",
             "rule_candidates",
             "rules_accepted",
+            "skill_count",
         )
         for condition, runs in reports.items():
             metrics: dict[str, Any] = {}

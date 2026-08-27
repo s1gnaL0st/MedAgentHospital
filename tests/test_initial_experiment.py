@@ -7,6 +7,7 @@ from medagent_hospital.simulacrum.experiment import (
     plot_initial_experiment,
     save_experiment_result,
 )
+from medagent_hospital.memory.skill_base import DiagnosticSkill, DiagnosticSkillBase
 
 
 def small_config() -> ExperimentConfig:
@@ -50,7 +51,7 @@ def test_initial_experiment_writes_json_and_plot(tmp_path) -> None:
     assert output.exists()
     assert plot.exists()
     assert plot_initial_experiment(result, tmp_path / "repeat.png") is True
-    assert set(CONDITIONS) == {"B0", "B1", "B2", "B3", "B4", "B5", "B6"}
+    assert set(CONDITIONS) == {"B0", "B1", "B2", "B3", "B4", "B5", "B6", "B7"}
 
 
 def test_selective_evolution_reports_validation_checkpoint_selection() -> None:
@@ -58,3 +59,14 @@ def test_selective_evolution_reports_validation_checkpoint_selection() -> None:
     report = result["reports"]["B6"][0]
     assert report["selected_patients_treated"] is not None
     assert report["selected_validation_score"] is not None
+
+
+def test_diagnostic_skill_requires_complete_trigger_and_tracks_utility() -> None:
+    base = DiagnosticSkillBase()
+    skill = DiagnosticSkill("S1", "胸痛鉴别", ("胸痛", "肌钙蛋白升高"), "D1", "D2")
+    base.add(skill)
+    assert base.retrieve({"symptoms": ["胸痛"]}) == []
+    assert base.retrieve({"symptoms": ["胸痛"], "exam_names": ["肌钙蛋白升高"]}) == [skill]
+    base.record(skill, correct=True, changed=True)
+    base.record(skill, correct=False, changed=True)
+    assert skill.utility == 0.0
