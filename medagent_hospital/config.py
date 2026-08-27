@@ -41,6 +41,8 @@ class Settings:
     deepseek_model: str = "deepseek-chat"
     huatuo_base_url: str = ""
     huatuo_model: str = "huatuo"
+    database_url: str = ""
+    redis_url: str = ""
     seed: int = 42
     data_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "data")
 
@@ -54,6 +56,8 @@ class Settings:
             deepseek_model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat").strip(),
             huatuo_base_url=os.getenv("HUATUO_BASE_URL", "").strip(),
             huatuo_model=os.getenv("HUATUO_MODEL", "huatuo").strip(),
+            database_url=os.getenv("DATABASE_URL", "").strip(),
+            redis_url=os.getenv("REDIS_URL", "").strip(),
             seed=int(os.getenv("SEED", "42")),
             data_dir=Path(os.getenv("DATA_DIR", PROJECT_ROOT / "data")),
         )

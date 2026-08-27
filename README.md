@@ -51,6 +51,22 @@ python -m medagent_hospital.web.server
 python scripts/run_deepseek_evolution.py
 ```
 
+## 机制实验：多 Agent、记忆与自进化
+
+项目的研究主线不是让网页模拟取代真实就诊，而是在固定病例与预算下，验证
+动态多 Agent 会诊、案例记忆和失败反思自进化能否提升**未见仿真病例**的决策质量。
+初步实验提供 B0-B6 七个配对条件：单医生、案例记忆、动态会诊、普通自进化、选择性
+自进化，以及固定每例会诊的成本对照。训练、验证和测试严格分离；测试时使用记忆副本，阻止检索
+强化机制污染训练状态。
+
+```powershell
+D:\python\python.exe scripts\run_initial_experiment.py
+```
+
+默认使用规则后端、3 个 seed、六科室均衡的训练集和测试集各 1008 例。结果写入
+`data/experiments/initial_experiment.json` 与学习曲线图；完整的研究问题、条件、
+指标、结论边界和 LLM 对比要求见 [实验协议](docs/EXPERIMENT_PROTOCOL.md)。
+
 ## 辅助诊断工作台
 
 浏览器打开 `http://127.0.0.1:8000/assistant`。导医、主诊、主任各有独立
@@ -73,12 +89,13 @@ python scripts/run_deepseek_evolution.py
 ## 患者入口
 
 浏览器打开 `http://127.0.0.1:8000/patient`，患者用自然语言描述症状，
-后台按“导医 → 主诊 → 主任”自动切换 Agent：
+后台由诊疗协调 Agent 按患者真实对话动态编排接诊流程：
 
-1. 导医 Agent：收集症状，给出分诊建议，患者确认后转诊；
-2. 主诊 Agent：追问关键症状，给出诊断、检查与用药建议；
-3. 影像分析 Agent：患者提供拍片类影像或描述时，生成影像报告辅助主诊；
-4. 主任 Agent：主诊不确定时升级会诊，查看完整历史后给出最终结论。
+1. 协调 Agent：读取当前会话状态，决定下一位工作人员和协作原因；
+2. 导医 / 护士 Agent：接待患者、澄清主诉、采集病史和危险信号；
+3. 专科医生 Agent：由对话动态判断专科方向，继续问诊并提出辅助意见；
+4. 影像分析 Agent：患者提供拍片类影像或描述时，生成影像报告辅助主诊；
+5. 主任 Agent：主诊或协调 Agent 发现不确定性时升级会诊。
 
 每次转诊都会记录 `handoff` 事件；就诊完成后的医嘱和影像报告写入
 医院记录库。该页面仅用于算法演示与研究，不构成临床诊断。
@@ -86,8 +103,9 @@ python scripts/run_deepseek_evolution.py
 患者入口的流程编排使用 LangGraph `StateGraph` 实现。每个患者会话的
 `session_id` 映射为 LangGraph `thread_id`，图状态通过
 `langgraph-checkpoint-sqlite` 保存到 `data/generated/hospital_records.db`，
-支持服务重启后的流程状态恢复。图节点目前包含导医、主诊和主任，影像分析作为
-主诊节点内的辅助 Agent 执行；后续可继续扩展文献研究、人工确认和随访节点。
+支持服务重启后的流程状态恢复。图包含诊疗协调、导医、护士、专科医生、影像分析
+和主任节点；专科名称、对话问题和交接内容由 Agent 根据上下文生成，不再受固定科室
+列表和固定问句限制。每轮路由会写入事件流，并在患者页面的“协作 Trace”中展示。
 
 ## 记忆流（Stanford Generative Agents 风格）
 
@@ -113,6 +131,10 @@ python scripts/run_deepseek_evolution.py
 - 提供记忆检索与反思：`/api/db/memory/retrieve`、`POST /api/db/memory/save`、
   `GET /api/db/audit`；
 - 患者会话结诊时自动写入完整会话与各 Agent 独立记忆（导医/主诊/主任/影像）。
+
+默认使用 SQLite；设置 `DATABASE_URL=postgresql://...` 后，业务记录、Agent 记忆、
+审计日志和 LangGraph checkpoint 会切换到 PostgreSQL。启动示例见
+[`docs/POSTGRES.md`](/F:/MedAgent/docs/POSTGRES.md)。
 
 ## DeepSeek 冒烟测试
 

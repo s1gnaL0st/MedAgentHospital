@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from medagent_hospital.agents.doctor import DoctorAgent
@@ -25,6 +26,9 @@ class MemoryManager:
         experience_base: ExperienceBase | None = None,
         validation_patients: list[PatientRecord] | None = None,
         rule_strength: float = 0.6,
+        strict_rule_improvement: bool = False,
+        min_rule_accuracy_gain: int = 0,
+        case_weight: float = 1.0,
         reasoner: str = "rule",
         db_agent: Any | None = None,
         memory_agent_id: str = "",
@@ -40,11 +44,17 @@ class MemoryManager:
             validation_patients if validation_patients is not None else []
         )
         self.rule_strength = rule_strength
+        self.strict_rule_improvement = strict_rule_improvement
+        self.min_rule_accuracy_gain = min_rule_accuracy_gain
+        self.case_weight = case_weight
         self.reasoner = reasoner
         self.db_agent = db_agent
         self.memory_agent_id = memory_agent_id
         self.memory_session_id = memory_session_id
         self.department = department
+        self.rule_candidates = 0
+        self.rules_accepted = 0
+        self.rules_discarded = 0
 
     def load_persisted(self) -> None:
         """Merge this doctor's audited SQLite memories into runtime bases."""
@@ -118,10 +128,13 @@ class MemoryManager:
         rule = self.reflect(patient, context)
         if rule is None:
             return "no_rule"
+        self.rule_candidates += 1
         if self.validate_rule(rule):
             self.experience_base.add(rule)
             self._persist_rule(rule)
+            self.rules_accepted += 1
             return "rule_added"
+        self.rules_discarded += 1
         return "rule_discarded"
 
     def _record_rule_stats(self, context: ConsultationContext, patient: PatientRecord) -> None:
@@ -174,14 +187,19 @@ class MemoryManager:
         candidate_base = self.experience_base.copy()
         candidate_base.add(rule)
         after = self._evaluate(candidate_base)
-        return after >= before
+        required_gain = max(0, self.min_rule_accuracy_gain)
+        if self.strict_rule_improvement:
+            required_gain = max(1, required_gain)
+        return after >= before + required_gain
 
     def _evaluate(self, experience_base: ExperienceBase) -> int:
         doctor = DoctorAgent(
             kb=self.kb,
-            case_base=self.case_base,
-            experience_base=experience_base,
+            # Validation must not reinforce or otherwise mutate training memory.
+            case_base=deepcopy(self.case_base),
+            experience_base=deepcopy(experience_base),
             reasoner=self.reasoner,
+            case_weight=self.case_weight,
         )
         runtime = HospitalRuntime(
             patient_agent=PatientAgent(),

@@ -84,6 +84,7 @@ class ConsultationContext:
     scores: dict[str, float] = field(default_factory=dict)
     retrieved_cases: list[dict[str, Any]] = field(default_factory=list)
     retrieved_rules: list[dict[str, Any]] = field(default_factory=list)
+    memory_events: list[dict[str, Any]] = field(default_factory=list)
     nurse_questions: int = 0
     asked_symptoms: list[str] = field(default_factory=list)
     pending_question: str = ""

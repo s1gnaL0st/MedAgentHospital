@@ -21,6 +21,7 @@ from medagent_hospital.web.hospital_store import HospitalRecordStore
 MEMORY_TYPES = {"observation", "case", "rule", "reflection", "summary"}
 
 ROLE_AGENT_IDS = {
+    "coordinator": "coordinator-001",
     "guide": "guide-001",
     "doctor": "doctor-001",
     "chief": "chief-001",
@@ -30,6 +31,7 @@ ROLE_AGENT_IDS = {
 }
 
 STAFF_VISIBLE = [
+    "coordinator-001",
     "guide-001",
     "doctor-001",
     "chief-001",
@@ -65,6 +67,7 @@ class DatabaseAgent:
 
     def _ensure_agents(self) -> None:
         names = {
+            "coordinator": "诊疗协调",
             "guide": "导医",
             "doctor": "主诊医师",
             "chief": "主任医师",

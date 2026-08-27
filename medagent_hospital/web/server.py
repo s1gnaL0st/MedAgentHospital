@@ -22,6 +22,7 @@ from medagent_hospital.agents.guide import GuideAgent
 from medagent_hospital.agents.nurse import NurseAgent
 from medagent_hospital.agents.patient import PatientAgent
 from medagent_hospital.agents.registry import DoctorRegistry
+from medagent_hospital.config import get_settings
 from medagent_hospital.knowledge import load_knowledge_base
 from medagent_hospital.memory.case_base import MedicalCaseBase
 from medagent_hospital.memory.experience_base import ExperienceBase
@@ -37,8 +38,9 @@ from medagent_hospital.simulacrum.models import (
     HospitalState,
     PatientRecord,
 )
-from medagent_hospital.web.hospital_store import HospitalRecordStore
+from medagent_hospital.web.hospital_store import create_hospital_store
 from medagent_hospital.web.db_agent import DatabaseAgent, STAFF_VISIBLE, ROLE_AGENT_IDS
+from medagent_hospital.web.coordinator import PatientCoordinator
 from medagent_hospital.web.patient_graph import PatientGraphState, build_patient_graph
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -55,20 +57,40 @@ class DemoState:
         self.guide_experience_base = ExperienceBase()
         self.assistant_sessions: dict[str, "AssistantSession"] = {}
         self.patient_sessions: dict[str, "PatientSession"] = {}
-        self.hospital_store = HospitalRecordStore()
+        self.database_url = get_settings().database_url
+        self.hospital_store = create_hospital_store(self.database_url)
         self.db_agent = DatabaseAgent(self.hospital_store, self.kb)
+        self.patient_coordinator = PatientCoordinator()
+        self.patient_checkpoint_conn = None
+        self.patient_checkpointer_context = None
+        self.patient_checkpointer = self._build_patient_checkpointer()
+        self.patient_graph = None
+        self.lock = threading.Lock()
+
+    def _build_patient_checkpointer(self):
+        if self.database_url:
+            try:
+                from langgraph.checkpoint.postgres import PostgresSaver
+
+                self.patient_checkpointer_context = PostgresSaver.from_conn_string(
+                    self.database_url
+                )
+                checkpointer = self.patient_checkpointer_context.__enter__()
+                checkpointer.setup()
+                return checkpointer
+            except ImportError:
+                return None
         self.patient_checkpoint_conn = sqlite3.connect(
             str(self.hospital_store.db_path), check_same_thread=False
         )
         try:
             from langgraph.checkpoint.sqlite import SqliteSaver
 
-            self.patient_checkpointer = SqliteSaver(self.patient_checkpoint_conn)
-            self.patient_checkpointer.setup()
+            checkpointer = SqliteSaver(self.patient_checkpoint_conn)
+            checkpointer.setup()
+            return checkpointer
         except ImportError:
-            self.patient_checkpointer = None
-        self.patient_graph = None
-        self.lock = threading.Lock()
+            return None
 
 
 STATE = DemoState()
@@ -870,7 +892,6 @@ PATIENT_IMAGING_NEGATIVE = ("没有", "没做", "未做", "未拍", "没拍", "�
 class PatientSession:
     session_id: str
     patient: PatientRecord
-    reasoner: str = "rule"
     stage: str = "triage"
     current_agent: str = "guide"
     department: str | None = None
@@ -880,6 +901,7 @@ class PatientSession:
     question_index: int = 0
     suggestion: dict | None = None
     decisions: dict = field(default_factory=dict)
+    observations: list[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
 
 
@@ -905,12 +927,13 @@ def _patient_append(
 
 
 def _patient_state(session: PatientSession) -> dict:
+    events = STATE.hospital_store.list_session_events(session.session_id)
+    route_events = [event for event in events if event.get("event_type") == "route"]
     return {
         "session_id": session.session_id,
         "stage": session.stage,
         "current_agent": session.current_agent,
         "done": session.stage == "done",
-        "reasoner": session.reasoner,
         "patient": {
             "id": session.patient.patient_id,
             "name": session.patient.name,
@@ -921,9 +944,30 @@ def _patient_state(session: PatientSession) -> dict:
             "risk_factors": list(session.patient.risk_factors),
         },
         "department": session.department,
+        "observations": list(session.observations),
         "messages": session.messages,
         "handoffs": session.handoffs,
         "suggestion": session.suggestion,
+        "structured_state": {
+            "stage": session.stage,
+            "current_agent": session.current_agent,
+            "department": session.department,
+            "pending_question": (
+                session.suggestion.get("question")
+                if session.suggestion else None
+            ),
+            "candidate_count": len((session.suggestion or {}).get("candidates", [])),
+            "handoff_count": len(session.handoffs),
+            "last_route": (
+                route_events[-1].get("payload", {}).get("target")
+                if route_events else session.current_agent
+            ),
+            "decision_status": "completed" if session.stage == "done" else "pending",
+        },
+        "trace": [
+            event for event in events
+            if event.get("event_type") in {"route", "message"}
+        ],
         "orders": STATE.hospital_store.list_orders(session.session_id),
         "reports": STATE.hospital_store.list_reports(session.session_id),
     }
@@ -949,13 +993,9 @@ def _extract_patient_symptoms(text: str) -> list[str]:
 
 def _start_patient(body: dict) -> dict:
     patient = _assistant_patient(body)
-    reasoner = str(body.get("reasoner", "rule")).strip().lower()
-    if reasoner not in {"rule", "llm"}:
-        raise ValueError("无效推理模式")
     session = PatientSession(
         session_id=uuid.uuid4().hex[:12],
         patient=patient,
-        reasoner=reasoner,
     )
     patient_view = {
         "id": patient.patient_id,
@@ -967,10 +1007,11 @@ def _start_patient(body: dict) -> dict:
         "risk_factors": list(patient.risk_factors),
     }
     STATE.hospital_store.create_session(session.session_id, patient_view)
-    _patient_append(
+    _patient_append(session, "system", "已建立患者会话，诊疗协调 Agent 正在安排接诊。")
+    _respond_patient_agent(
         session,
         "guide",
-        "您好，我是导医。请先告诉我您主要哪里不舒服？",
+        "患者刚进入医院，请自然接待患者并询问主诉，不要假设患者已经提供症状。",
     )
     with STATE.lock:
         STATE.patient_sessions[session.session_id] = session
@@ -1093,6 +1134,207 @@ def _handoff_patient_to_chief(session: PatientSession) -> dict:
         payload=session.suggestion,
     )
     return _patient_state(session)
+
+
+def _coordinate_patient(session: PatientSession, content: str) -> dict[str, str]:
+    """Ask the coordinator for a role-level routing command."""
+    decision = STATE.patient_coordinator.decide(
+        stage=session.stage,
+        content=content,
+        has_candidates=bool((session.suggestion or {}).get("candidates")),
+        context=_patient_agent_context(session),
+    )
+    return {"route": decision.target, "route_reason": decision.reason}
+
+
+def _patient_agent_context(session: PatientSession) -> dict:
+    return {
+        "stage": session.stage,
+        "current_agent": session.current_agent,
+        "department": session.department or "",
+        "symptoms": list(session.patient.symptoms),
+        "observations": list(session.observations[-12:]),
+        "handoffs": list(session.handoffs[-8:]),
+        "pending_question": (session.suggestion or {}).get("question", ""),
+        "latest_suggestion": session.suggestion or {},
+        "recent_messages": [
+            {"sender": item.get("sender"), "content": item.get("content")}
+            for item in session.messages[-12:]
+        ],
+    }
+
+
+def _respond_patient_agent(session: PatientSession, role: str, content: str) -> dict:
+    """Run one conversational Agent and apply its structured action."""
+    result = STATE.patient_coordinator.respond(
+        role,
+        context=_patient_agent_context(session),
+        patient_message=content,
+    )
+    if result.get("department"):
+        session.department = result["department"]
+        STATE.hospital_store.update_session(
+            session.session_id,
+            department=session.department,
+        )
+    session.decisions[role] = result
+    session.suggestion = {
+        "department": session.department or result.get("department", ""),
+        "question": result.get("question", ""),
+        "diagnosis": result.get("diagnosis", ""),
+        "exams": result.get("exams", []),
+        "treatment": result.get("medications", []),
+        "reasoning": result.get("reasoning", ""),
+        "confidence": result.get("confidence", 0.0),
+        "candidates": result.get("candidates", []),
+    }
+    _patient_append(session, role, result["content"], payload=result)
+    handoff = result.get("handoff_to", "")
+    if result.get("action") == "escalate" and not handoff:
+        handoff = "chief"
+    if handoff and handoff != role:
+        _activate_patient_agent(session, role, handoff, result.get("reasoning", "Agent 请求协作"))
+    elif result.get("action") == "complete":
+        _complete_dynamic_patient(session, role, result)
+    return result
+
+
+def _activate_patient_agent(session: PatientSession, source: str, target: str, reason: str) -> None:
+    session.handoffs.append({"from": source, "to": target, "reason": reason or "协作交接"})
+    session.current_agent = target
+    session.stage = target
+    _patient_append(
+        session,
+        "system",
+        f"系统：已将会话交给 {target} Agent，继续处理当前任务。",
+        payload={"from": source, "to": target, "reason": reason},
+    )
+    greeting = STATE.patient_coordinator.respond(
+        target,
+        context=_patient_agent_context(session),
+        patient_message="请接收上一位 Agent 的交接摘要，开始与患者沟通；先提出当前最必要的一步。",
+    )
+    greeting = STATE.patient_coordinator._normalize(greeting, target)
+    session.decisions[target] = greeting
+    session.suggestion = {
+        "department": session.department or greeting.get("department", ""),
+        "question": greeting.get("question", ""),
+        "diagnosis": greeting.get("diagnosis", ""),
+        "exams": greeting.get("exams", []),
+        "treatment": greeting.get("medications", []),
+        "reasoning": greeting.get("reasoning", ""),
+        "confidence": greeting.get("confidence", 0.0),
+        "candidates": greeting.get("candidates", []),
+    }
+    _patient_append(session, target, greeting["content"], payload=greeting)
+
+
+def _complete_dynamic_patient(session: PatientSession, role: str, result: dict) -> None:
+    session.stage = "done"
+    session.current_agent = role
+    STATE.hospital_store.update_session(
+        session.session_id,
+        department=session.department or "",
+        diagnosis_id="",
+        diagnosis_name=result.get("diagnosis", ""),
+        completed=True,
+    )
+    for exam in result.get("exams", []):
+        STATE.hospital_store.add_order(session.session_id, "exam", exam)
+    for medication in result.get("medications", []):
+        STATE.hospital_store.add_order(session.session_id, "medication", medication)
+    STATE.hospital_store.set_session_complete(
+        session.session_id,
+        {
+            "patient": {"id": session.patient.patient_id, "age": session.patient.age, "symptoms": session.patient.symptoms},
+            "messages": session.messages,
+            "decisions": session.decisions,
+            "orders": STATE.hospital_store.list_orders(session.session_id),
+            "reports": STATE.hospital_store.list_reports(session.session_id),
+        },
+    )
+    STATE.db_agent.save_memory(
+        ROLE_AGENT_IDS.get(role, "doctor-001"),
+        session.session_id,
+        "summary",
+        {
+            "department": session.department or "",
+            "diagnosis_name": result.get("diagnosis", ""),
+            "final": True,
+            "exams": result.get("exams", []),
+        },
+        visible_to=[ROLE_AGENT_IDS.get(role, "doctor-001")],
+    )
+
+
+def _imaging_turn(session: PatientSession, content: str) -> dict:
+    report = _analyze_patient_imaging(session, content)
+    _patient_append(
+        session,
+        "imaging",
+        (
+            f"已分析患者提供的影像（{report['exam_name']}）。"
+            f"影像所见：{report['findings']}；"
+            f"结论：{report['impression']}；"
+            f"建议：{report['suggestion']}。"
+        ),
+        payload=report,
+    )
+    session.current_agent = "doctor"
+    session.stage = "doctor"
+    _patient_append(session, "doctor", "我已收到影像分析报告，将结合影像所见继续判断。")
+    return _patient_state(session)
+
+
+def _agent_turn(role: str, session: PatientSession, content: str) -> dict:
+    if session.current_agent != role:
+        previous = session.current_agent
+        session.handoffs.append({"from": previous, "to": role, "reason": "协调 Agent 动态分派"})
+        session.current_agent = role
+        session.stage = role
+        _patient_append(
+            session,
+            "system",
+            f"系统：协调 Agent 将当前任务交给 {role} Agent。",
+            payload={"from": previous, "to": role},
+        )
+    session.observations.append(content)
+    result = _respond_patient_agent(session, role, content)
+    if role == "imaging" and result.get("content"):
+        report = {
+            "exam_name": result.get("exams", ["患者提供的影像"])[0] if result.get("exams") else "患者提供的影像",
+            "findings": result.get("reasoning") or result["content"],
+            "impression": result.get("diagnosis") or "影像信息需结合原始资料和临床判断",
+            "suggestion": result["content"],
+        }
+        STATE.hospital_store.add_report(
+            session.session_id,
+            report["exam_name"],
+            report["findings"],
+            report["impression"],
+            report["suggestion"],
+        )
+    return _patient_state(session)
+
+
+def _guide_agent_turn(session: PatientSession, content: str) -> dict:
+    return _agent_turn("guide", session, content)
+
+
+def _nurse_agent_turn(session: PatientSession, content: str) -> dict:
+    return _agent_turn("nurse", session, content)
+
+
+def _doctor_agent_turn(session: PatientSession, content: str) -> dict:
+    return _agent_turn("doctor", session, content)
+
+
+def _imaging_agent_turn(session: PatientSession, content: str) -> dict:
+    return _agent_turn("imaging", session, content)
+
+
+def _chief_agent_turn(session: PatientSession, content: str) -> dict:
+    return _agent_turn("chief", session, content)
 
 
 def _finalize_patient(session: PatientSession, agent: str) -> dict:
@@ -1290,6 +1532,10 @@ def _doctor_turn(session: PatientSession, content: str) -> dict:
 
 
 def _chief_turn(session: PatientSession, content: str) -> dict:
+    if session.stage != "chief" and any(
+        word in content for word in PATIENT_ESCALATE_KEYWORDS
+    ):
+        return _handoff_patient_to_chief(session)
     if any(word in content for word in PATIENT_YES_KEYWORDS):
         return _finalize_patient(session, "chief")
     _patient_append(
@@ -1311,9 +1557,13 @@ def _patient_message(body: dict) -> dict:
     if STATE.patient_graph is None:
         STATE.patient_graph = build_patient_graph(
             get_session=lambda session_id: STATE.patient_sessions.get(session_id),
-            triage=_triage_turn,
-            doctor=_doctor_turn,
-            chief=_chief_turn,
+            triage=_guide_agent_turn,
+            guide=_guide_agent_turn,
+            nurse=_nurse_agent_turn,
+            doctor=_doctor_agent_turn,
+            chief=_chief_agent_turn,
+            imaging=_imaging_agent_turn,
+            coordinate=_coordinate_patient,
             checkpointer=STATE.patient_checkpointer,
         )
     graph_state: PatientGraphState = {
@@ -1325,7 +1575,22 @@ def _patient_message(body: dict) -> dict:
         graph_state,
         config={"configurable": {"thread_id": session.session_id}},
     )
-    return result["response"]
+    route = result.get("route", session.stage)
+    route_reason = result.get("route_reason", "按当前阶段路由")
+    STATE.db_agent.record_event(
+        session.session_id,
+        len(session.messages) + len(STATE.hospital_store.list_session_events(session.session_id)) + 1,
+        "coordinator",
+        "route",
+        {
+            "from_stage": graph_state["stage"],
+            "target": route,
+            "reason": route_reason,
+            "content": content,
+        },
+        STAFF_VISIBLE + [ROLE_AGENT_IDS.get("patient", "patient-001")],
+    )
+    return _patient_state(session)
 
 
 def _db_save_memory(body: dict) -> dict:
@@ -1399,6 +1664,22 @@ class DemoHandler(BaseHTTPRequestHandler):
                 _json_response(self, {"error": "患者会话不存在"}, status=404)
                 return
             _json_response(self, _patient_state(session))
+            return
+        if path == "/api/patient/trace":
+            session_id = parse_qs(urlparse(self.path).query).get("session_id", [""])[0]
+            session = STATE.patient_sessions.get(session_id)
+            if session is None:
+                _json_response(self, {"error": "患者会话不存在"}, status=404)
+                return
+            state = _patient_state(session)
+            _json_response(
+                self,
+                {
+                    "session_id": session_id,
+                    "structured_state": state["structured_state"],
+                    "trace": state["trace"],
+                },
+            )
             return
         if path == "/api/db/audit":
             agent_id = parse_qs(urlparse(self.path).query).get("agent_id", [""])[0] or None

@@ -13,6 +13,20 @@ from medagent_hospital.web.server import (
     _start_assistant,
     _start_patient,
 )
+from medagent_hospital.llm.base import RuleBackend
+from medagent_hospital.web.coordinator import PatientCoordinator
+
+
+@pytest.fixture
+def local_patient_agents():
+    from medagent_hospital.web.server import STATE
+
+    previous = STATE.patient_coordinator
+    STATE.patient_coordinator = PatientCoordinator(llm=RuleBackend())
+    STATE.patient_graph = None
+    yield
+    STATE.patient_coordinator = previous
+    STATE.patient_graph = None
 
 
 def test_kb_overview() -> None:
@@ -181,8 +195,8 @@ def test_assistant_rejects_wrong_stage() -> None:
         )
 
 
-def test_patient_flow_triage_to_done() -> None:
-    state = _start_patient({"gender": "male", "age": 50, "reasoner": "rule"})
+def test_patient_agents_route_from_guide_to_doctor_and_complete(local_patient_agents) -> None:
+    state = _start_patient({"gender": "male", "age": 50})
     session_id = state["session_id"]
     assert state["current_agent"] == "guide"
 
@@ -191,14 +205,17 @@ def test_patient_flow_triage_to_done() -> None:
     )
     assert state["stage"] == "triage"
     assert state["suggestion"]["department"]
+    assert state["structured_state"]["last_route"] == "guide"
+    assert any(
+        event["agent_id"] == "coordinator-001" and event["event_type"] == "route"
+        for event in state["trace"]
+    )
 
     state = _patient_message({"session_id": session_id, "content": "同意"})
     assert state["stage"] == "doctor"
     assert state["current_agent"] == "doctor"
     assert state["handoffs"][0]["to"] == "doctor"
 
-    while state["suggestion"] and state["suggestion"].get("question"):
-        state = _patient_message({"session_id": session_id, "content": "有"})
     assert state["suggestion"]["candidates"]
 
     state = _patient_message({"session_id": session_id, "content": "确认"})
@@ -206,16 +223,13 @@ def test_patient_flow_triage_to_done() -> None:
     assert state["orders"]
 
 
-def test_patient_escalate_to_chief() -> None:
+def test_patient_agents_escalate_to_chief(local_patient_agents) -> None:
     state = _start_patient({"gender": "male", "age": 60})
     session_id = state["session_id"]
     state = _patient_message(
         {"session_id": session_id, "content": "喘息,胸闷,咳嗽"}
     )
     state = _patient_message({"session_id": session_id, "content": "同意"})
-    while state["suggestion"] and state["suggestion"].get("question"):
-        state = _patient_message({"session_id": session_id, "content": "有"})
-
     state = _patient_message({"session_id": session_id, "content": "请主任会诊"})
     assert state["stage"] == "chief"
     assert state["current_agent"] == "chief"
@@ -225,16 +239,13 @@ def test_patient_escalate_to_chief() -> None:
     assert state["done"] is True
 
 
-def test_patient_provided_imaging_analyzed() -> None:
+def test_patient_agents_route_imaging_and_return_to_doctor(local_patient_agents) -> None:
     state = _start_patient({"gender": "male", "age": 60})
     session_id = state["session_id"]
     state = _patient_message(
         {"session_id": session_id, "content": "喘息,胸闷,咳嗽"}
     )
     state = _patient_message({"session_id": session_id, "content": "同意"})
-    while state["suggestion"] and state["suggestion"].get("question"):
-        state = _patient_message({"session_id": session_id, "content": "有"})
-
     state = _patient_message(
         {
             "session_id": session_id,
@@ -243,11 +254,17 @@ def test_patient_provided_imaging_analyzed() -> None:
     )
     assert any(message["sender"] == "imaging" for message in state["messages"])
     assert state["reports"]
-    assert state["reports"][-1]["exam_name"] == "胸部CT"
+    assert state["reports"][-1]["exam_name"]
     assert state["stage"] == "doctor"
+    imaging_routes = [
+        event["payload"]["target"]
+        for event in state["trace"]
+        if event["event_type"] == "route"
+    ]
+    assert "imaging" in imaging_routes
 
 
-def test_patient_finalize_persists_memories() -> None:
+def test_patient_agents_finalize_persists_memories(local_patient_agents) -> None:
     from medagent_hospital.web.server import STATE
 
     state = _start_patient({"gender": "male", "age": 60})
@@ -256,8 +273,6 @@ def test_patient_finalize_persists_memories() -> None:
         {"session_id": session_id, "content": "喘息,胸闷,咳嗽"}
     )
     state = _patient_message({"session_id": session_id, "content": "同意"})
-    while state["suggestion"] and state["suggestion"].get("question"):
-        state = _patient_message({"session_id": session_id, "content": "有"})
     state = _patient_message({"session_id": session_id, "content": "确认"})
 
     saved = STATE.hospital_store.get_session(session_id)

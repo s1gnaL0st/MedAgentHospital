@@ -33,7 +33,8 @@ class OpenAICompatibleBackend(LLMBackend):
 
         self.name = name
         self.model = model
-        self._client = OpenAI(api_key=api_key, base_url=base_url)
+        # Keep an unavailable remote model from blocking the local patient UI indefinitely.
+        self._client = OpenAI(api_key=api_key, base_url=base_url, timeout=30.0, max_retries=1)
 
     def chat(
         self,

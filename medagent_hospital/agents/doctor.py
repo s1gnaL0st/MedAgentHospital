@@ -374,6 +374,13 @@ class DoctorAgent(Agent):
 
         context.retrieved_cases = cases
         context.retrieved_rules = rules
+        context.memory_events.append(
+            {
+                "agent": self.name,
+                "case_hits": len(cases),
+                "rule_hits": len(rules),
+            }
+        )
         return cases, rules
 
     def _apply_memory(
@@ -394,6 +401,11 @@ class DoctorAgent(Agent):
         ]
 
         for hit in rule_hits:
+            # A reflection rule is a conjunction of evidence, not a keyword
+            # vote. Partial matches are too ambiguous and caused negative
+            # transfer in the 1k mechanism audit.
+            if hit["score"] < 1.0:
+                continue
             delta = hit["strength"] * hit["score"]
             for index, (score, disease) in enumerate(scored):
                 if disease.id == hit["favor"]:

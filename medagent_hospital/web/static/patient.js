@@ -102,10 +102,14 @@ function reset() {
   document.getElementById("chatLog").replaceChildren();
   document.getElementById("patientPanel").textContent = "尚未开始问诊";
   document.getElementById("patientPanel").className = "muted empty";
+  document.getElementById("statePanel").textContent = "尚未开始问诊";
+  document.getElementById("statePanel").className = "muted empty";
   document.getElementById("handoffPanel").textContent = "暂无";
   document.getElementById("handoffPanel").className = "muted empty";
   document.getElementById("orderPanel").textContent = "尚未开单";
   document.getElementById("orderPanel").className = "muted empty";
+  document.getElementById("tracePanel").textContent = "暂无路由记录";
+  document.getElementById("tracePanel").className = "muted empty";
   const badge = document.getElementById("agentBadge");
   badge.textContent = "当前接诊：导医";
   badge.classList.remove("done-badge");
@@ -118,8 +122,10 @@ function render(state) {
   renderBadge(state);
   renderMessages(state);
   renderPatient(state);
+  renderStructuredState(state);
   renderHandoffs(state);
   renderOrders(state);
+  renderTrace(state);
 }
 
 function renderBadge(state) {
@@ -171,6 +177,26 @@ function renderPatient(state) {
   panel.appendChild(el("div", "suggestion-section"));
   panel.lastElementChild.appendChild(el("h3", "", "症状"));
   panel.lastElementChild.appendChild(tagList(patient.symptoms));
+}
+
+function renderStructuredState(state) {
+  const panel = document.getElementById("statePanel");
+  panel.replaceChildren();
+  const current = state.structured_state || {};
+  const rows = [
+    ["阶段", current.stage || state.stage || "-"],
+    ["当前 Agent", AGENT_LABELS[current.current_agent || state.current_agent] || current.current_agent || state.current_agent || "-"],
+    ["待追问", current.pending_question || "无"],
+    ["候选诊断", String(current.candidate_count ?? 0)],
+    ["升级次数", String(current.handoff_count ?? 0)],
+    ["状态", current.decision_status === "completed" ? "已完成" : "进行中"],
+  ];
+  rows.forEach(([label, value]) => {
+    const row = el("div", "state-row");
+    row.appendChild(el("span", "state-label", label));
+    row.appendChild(el("span", "state-value", value));
+    panel.appendChild(row);
+  });
 }
 
 function renderHandoffs(state) {
@@ -227,6 +253,30 @@ function renderOrders(state) {
   });
 }
 
+function renderTrace(state) {
+  const panel = document.getElementById("tracePanel");
+  panel.replaceChildren();
+  const trace = state.trace || [];
+  if (!trace.length) {
+    panel.appendChild(el("span", "muted", "暂无路由记录"));
+    return;
+  }
+  trace.forEach((event) => {
+    const payload = event.payload || {};
+    const item = el("div", "trace-item");
+    if (event.event_type === "route") {
+      item.appendChild(el("span", "trace-route", `协调 → ${AGENT_LABELS[payload.target] || payload.target}`));
+      item.appendChild(el("span", "trace-reason", payload.reason || ""));
+      item.title = payload.content ? `触发输入：${payload.content}` : "";
+    } else {
+      const sender = payload.sender || event.role || "system";
+      item.appendChild(el("span", "trace-route", `${AGENT_LABELS[sender] || sender} · 消息`));
+      item.appendChild(el("span", "trace-reason", payload.content || ""));
+    }
+    panel.appendChild(item);
+  });
+}
+
 async function sendCurrentMessage() {
   if (!session) return;
   const input = document.getElementById("chatInput");
@@ -255,7 +305,6 @@ document.getElementById("startForm").addEventListener("submit", async (event) =>
   const body = {
     gender: document.getElementById("genderInput").value,
     age: Number(document.getElementById("ageInput").value) || 45,
-    reasoner: document.getElementById("patientModelSelect").value,
   };
   const startBtn = document.getElementById("startBtn");
   startBtn.disabled = true;

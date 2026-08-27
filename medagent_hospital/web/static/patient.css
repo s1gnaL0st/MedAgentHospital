@@ -170,6 +170,19 @@
   line-height: 1.6;
 }
 
+.state-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.state-row:last-child { border-bottom: 0; }
+.state-label { color: var(--muted); }
+.state-value { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+
 .patient-title { font-size: 15px; font-weight: 600; }
 
 .suggestion-section { display: grid; gap: 6px; margin-top: 8px; }
@@ -188,6 +201,18 @@
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
+
+.trace-item {
+  display: grid;
+  gap: 2px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.trace-item:last-child { border-bottom: 0; }
+.trace-route { color: var(--accent); font-weight: 600; }
+.trace-reason { color: var(--muted); line-height: 1.5; }
 
 .chips {
   display: flex;

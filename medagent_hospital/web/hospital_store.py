@@ -20,6 +20,15 @@ DEFAULT_DB_PATH = (
 )
 
 
+def create_hospital_store(database_url: str | None = None, db_path: str | Path | None = None):
+    """Create the configured store; SQLite remains the default for local use."""
+    if database_url:
+        from medagent_hospital.web.postgres_store import PostgresRecordStore
+
+        return PostgresRecordStore(database_url)
+    return HospitalRecordStore(db_path)
+
+
 class HospitalRecordStore:
     def __init__(self, db_path: str | Path | None = None) -> None:
         self.db_path = Path(db_path) if db_path else DEFAULT_DB_PATH
@@ -313,6 +322,19 @@ class HospitalRecordStore:
         data["payload"] = json.loads(data["payload"])
         data["visible_to"] = json.loads(data["visible_to"])
         return data
+
+    def list_session_events(self, session_id: str) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM session_events WHERE session_id = ? ORDER BY seq, id",
+            (session_id,),
+        ).fetchall()
+        events = []
+        for row in rows:
+            data = dict(row)
+            data["payload"] = json.loads(data["payload"])
+            data["visible_to"] = json.loads(data["visible_to"])
+            events.append(data)
+        return events
 
     def set_session_complete(self, session_id: str, complete: dict) -> None:
         self._conn.execute(

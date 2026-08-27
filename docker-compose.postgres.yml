@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: medagent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: medagent
+      POSTGRES_PASSWORD: medagent
+      POSTGRES_DB: medagent
+    ports:
+      - "5432:5432"
+    volumes:
+      - medagent-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  medagent-postgres-data:

@@ -19,13 +19,7 @@
       <a class="tab active" href="/patient">患者入口</a>
     </nav>
     <div class="status">
-      <label class="model-label">推理模式
-        <select id="patientModelSelect" aria-label="推理模式">
-          <option value="rule">规则模式</option>
-          <option value="llm">DeepSeek</option>
-        </select>
-      </label>
-      <span class="dot"></span><span>患者自助问诊</span>
+      <span class="dot"></span><span>协调 Agent 接诊</span>
     </div>
   </header>
 
@@ -67,10 +61,14 @@
     <aside class="panel side">
       <h2>患者信息</h2>
       <div id="patientPanel" class="muted empty">尚未开始问诊</div>
+      <h2>流程状态</h2>
+      <div id="statePanel" class="muted empty">尚未开始问诊</div>
       <h2>转诊记录</h2>
       <div id="handoffPanel" class="muted empty">暂无</div>
       <h2>医嘱记录</h2>
       <div id="orderPanel" class="muted empty">尚未开单</div>
+      <h2>协作 Trace</h2>
+      <div id="tracePanel" class="muted empty">暂无路由记录</div>
     </aside>
   </main>
 
