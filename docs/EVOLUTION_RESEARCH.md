@@ -41,10 +41,12 @@ offline experiment. B8 extends the representation to an executable
 baseline.
 
 The first B7 prototype is negative: a skill that only reranks diagnoses is not
-enough. The B8 prototype is a more faithful action-level test, but its single
-seed 1k result is only `86.5%` versus B6 `86.8%`; it is not yet a positive
-claim. It is useful because it demonstrates why skill utility must be measured
-against explicit action changes and why multi-seed confirmation is required.
+enough. The B8 prototype is a more faithful action-level test. A three-seed
+1k repeat confirms that it is not a positive mechanism: B8 is
+`86.8% +/- 0.2%`, versus B6 `87.4% +/- 0.6%`, and has higher routing cost.
+It demonstrates why skill utility must be measured against explicit action
+changes and an independent information-gain verifier, rather than final
+trajectory outcome alone.
 
 This project does not claim that the above arXiv records are clinical methods,
 nor that the internal generated knowledge base measures medical competence.
