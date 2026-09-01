@@ -2,6 +2,7 @@
 
 基于论文《Agent Hospital: A Simulacrum of Hospital with Evolvable Medical Agents》
 实现的医疗多 Agent 仿真与进化系统。
+<img width="2516" height="1004" alt="image" src="https://github.com/user-attachments/assets/bd7a9ae6-fe3c-45f1-a06a-7d808fba9ab9" />
 
 ## 项目目标
 
